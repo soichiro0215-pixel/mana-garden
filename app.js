@@ -54,6 +54,15 @@ const BUILDING_TYPES = {
         asset: 'assets/barracks.png',
         upgradeCostMultiplier: 2.5
     },
+    town_hall: {
+        name: 'タウンホール',
+        description: '街の中心部にある町役場。アップグレードはできませんが、最大人口上限を増やします。',
+        cost: { gold: 0, wood: 0, mana: 0 },
+        popMaxAdd: 5,
+        production: { gold: 0, wood: 0, mana: 0 },
+        asset: 'assets/town_hall.png',
+        upgradeCostMultiplier: 0.0
+    },
     world_tree: {
         name: '世界樹の種',
         description: '伝説の世界樹。大輪のマナの花を咲かせてゲームクリアを目指しましょう。',
@@ -131,7 +140,8 @@ const ASSET_FILES = {
     knight_girl: 'assets/character_knight_girl.png',
     mage_boy: 'assets/character_mage_boy.png',
     mage_girl: 'assets/character_mage_girl.png',
-    game_logo: 'assets/game_logo.png'
+    game_logo: 'assets/game_logo.png',
+    town_hall: 'assets/town_hall.png'
 };
 
 // ==========================================
@@ -594,11 +604,14 @@ function initGame() {
         }
     }
     
-    // 最初からレンガの道路（街路）を配置する (十字路デザイン)
-    const initialRoads = [
-        {c: 1, r: 3}, {c: 2, r: 3}, {c: 3, r: 3}, {c: 4, r: 3}, {c: 5, r: 3}, {c: 6, r: 3}, // 横の大通り
-        {c: 3, r: 1}, {c: 3, r: 2}, {c: 3, r: 4}, {c: 3, r: 5}, {c: 3, r: 6}  // 縦の大通り
-    ];
+    // 最初からレンガの道路（街路）を配置する (十字路デザイン - 全幅拡張)
+    const initialRoads = [];
+    for (let i = 0; i < GRID_SIZE; i++) {
+        initialRoads.push({c: i, r: 3});
+        if (i !== 3) {
+            initialRoads.push({c: 3, r: i});
+        }
+    }
     initialRoads.forEach(coord => {
         const cell = state.grid[coord.r][coord.c];
         cell.tileType = 'dirt';
@@ -618,7 +631,10 @@ function initGame() {
         
         const isRoad = initialRoads.some(coord => coord.c === c && coord.r === r);
         if (isRoad) continue;
-        if ((r === 2 && c === 2) || (r === 4 && c === 4) || (r === 3 && c === 5)) continue; // 初期建物予定地を避ける
+        
+        // 初期建物予定地を避ける
+        const isInitialBuilding = (c === 2 && r === 2) || (c === 2 && r === 4) || (c === 4 && r === 2) || (c === 4 && r === 4);
+        if (isInitialBuilding) continue;
         if (state.grid[r][c].obstacle) continue;
         
         const types = ['tree', 'rock', 'ruin'];
@@ -630,9 +646,10 @@ function initGame() {
     }
     
     // 最初から建物をいくつか配置して町らしくしておく
-    placeBuildingAt(2, 2, 'house', true); // コテージ
-    placeBuildingAt(4, 4, 'lumberjack', true); // 木こり小屋
-    placeBuildingAt(3, 5, 'tavern', true); // 冒険者の酒場（初期配置により自動的に最初の魔導士が召喚される）
+    placeBuildingAt(2, 2, 'town_hall', true);  // タウンホール
+    placeBuildingAt(2, 4, 'house', true);      // 民家
+    placeBuildingAt(4, 2, 'lumberjack', true); // 木こり小屋
+    placeBuildingAt(4, 4, 'tavern', true);     // 冒険者の酒場 (魔導士が召喚される)
     
     updateHUD();
     
@@ -837,6 +854,14 @@ function showDetailsPanel(cell) {
     title.textContent = `${config.name} (Lv.${cell.building.level})`;
     desc.textContent = config.description;
     
+    if (buildType === 'town_hall') {
+        level.textContent = "なし";
+        prod.textContent = "最大人口上限を+5増やしています。🏛️";
+        btnUpgrade.classList.add('hidden');
+        btnDemolish.classList.add('hidden');
+        return;
+    }
+    
     if (buildType === 'world_tree') {
         level.textContent = "MAX";
         prod.textContent = "マナの花が咲き誇っています 🌳✨";
@@ -1008,7 +1033,11 @@ function placeBuildingAt(col, row, type, free = false) {
     
     const tile = document.getElementById(`tile-${col}-${row}`);
     if (tile) {
-        tile.dataset.tip = `🏡 <b>${config.name} (Lv.1)</b><br>${config.description}<br>・クリックして操作`;
+        if (type === 'town_hall') {
+            tile.dataset.tip = `🏛️ <b>${config.name}</b><br>${config.description}<br>・街のシンボルです。`;
+        } else {
+            tile.dataset.tip = `🏡 <b>${config.name} (Lv.1)</b><br>${config.description}<br>・クリックして操作`;
+        }
     }
     
     playBuildSound();
@@ -1416,7 +1445,8 @@ function spawnAdventurer(profession) {
         level: 1,
         exp: 0,
         atk: profession === 'knight' ? 3 : 4,
-        speed: profession === 'knight' ? 0.05 : 0.04
+        speed: profession === 'knight' ? 0.05 : 0.04,
+        path: []
     };
     
     state.characters.push(adventurer);
@@ -1446,7 +1476,8 @@ function spawnSlime() {
         state: 'wander',
         hp: 8,
         maxHp: 8,
-        speed: 0.02
+        speed: 0.02,
+        path: []
     };
     
     state.characters.push(slime);
@@ -1470,7 +1501,8 @@ function spawnCitizen() {
         targetX: roadTile ? roadTile.col : 3,
         targetY: roadTile ? roadTile.row : 3,
         state: 'wander',
-        speed: 0.03
+        speed: 0.03,
+        path: []
     };
     
     state.characters.push(citizen);
@@ -1558,14 +1590,27 @@ function updateCharacters() {
             char.y += (dy / dist) * step;
             
             // 体の方向（左右）および歩行クラスの設定
-            dom.style.setProperty('--scale-x', dx >= 0 ? '1' : '-1');
+            // 画面空間上での移動方向 (dx - dy) に応じて反転する
+            const screenDx = dx - dy;
+            dom.style.setProperty('--scale-x', screenDx >= 0 ? '1' : '-1');
             dom.classList.add('walking');
         } else {
             char.x = char.targetX;
             char.y = char.targetY;
             dom.classList.remove('walking');
-            if (char.state === 'walk_to_target' || char.state === 'wander') {
-                setRandomTarget(char);
+            
+            // もし復帰パスが残っているなら次のセルへ進む
+            if (char.path && char.path.length > 0) {
+                const nextNode = char.path.shift();
+                char.targetX = nextNode.x;
+                char.targetY = nextNode.y;
+            } else {
+                if (char.state === 'walk_to_road') {
+                    char.state = 'wander';
+                }
+                if (char.state === 'walk_to_target' || char.state === 'wander') {
+                    setRandomTarget(char);
+                }
             }
         }
         
@@ -1576,31 +1621,91 @@ function updateCharacters() {
     });
 }
 
+// 最寄りの道路セルまでの最短経路をBFSで探索する
+function findPathToRoad(startCol, startRow) {
+    const queue = [[{x: startCol, y: startRow}]];
+    const visited = new Set();
+    visited.add(`${startCol},${startRow}`);
+    
+    while (queue.length > 0) {
+        const path = queue.shift();
+        const curr = path[path.length - 1];
+        
+        // もしこのセルが道路なら、これが目的地
+        if (state.grid[curr.y][curr.x].tileType === 'dirt') {
+            return path;
+        }
+        
+        // 上下左右の4方向を探索
+        const dirs = [
+            {dx: 0, dy: -1},
+            {dx: 0, dy: 1},
+            {dx: -1, dy: 0},
+            {dx: 1, dy: 0}
+        ];
+        
+        for (const dir of dirs) {
+            const nx = curr.x + dir.dx;
+            const ny = curr.y + dir.dy;
+            
+            if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                const cell = state.grid[ny][nx];
+                // 建物や障害物は通れない
+                if (!cell.building && !cell.obstacle) {
+                    const key = `${nx},${ny}`;
+                    if (!visited.has(key)) {
+                        visited.add(key);
+                        queue.push([...path, {x: nx, y: ny}]);
+                    }
+                }
+            }
+        }
+    }
+    return null;
+}
+
 // キャラクターが道路（レンガ道）のみを歩くように目標を設定するAI
 function setRandomTarget(char) {
     const currentX = Math.round(char.x);
     const currentY = Math.round(char.y);
     
+    // もし市民や冒険者が道路の上にいない場合、最寄りの道路への復帰経路を探す
+    if (char.type !== 'slime' && state.grid[currentY][currentX].tileType !== 'dirt') {
+        const roadPath = findPathToRoad(currentX, currentY);
+        if (roadPath && roadPath.length > 1) {
+            char.path = roadPath.slice(1);
+            const nextNode = char.path.shift();
+            char.targetX = nextNode.x;
+            char.targetY = nextNode.y;
+            char.state = 'walk_to_road';
+            return;
+        }
+    }
+    
     const neighbors = [];
-    for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-            if (dx === 0 && dy === 0) continue;
-            const nx = currentX + dx;
-            const ny = currentY + dy;
+    // 直交4方向
+    const dirs = [
+        {dx: 0, dy: -1},
+        {dx: 0, dy: 1},
+        {dx: -1, dy: 0},
+        {dx: 1, dy: 0}
+    ];
+    for (const dir of dirs) {
+        const nx = currentX + dir.dx;
+        const ny = currentY + dir.dy;
+        
+        if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+            const cell = state.grid[ny][nx];
             
-            if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
-                const cell = state.grid[ny][nx];
-                
-                // スライムはモンスターなので、道路以外の草地も自由に歩ける
-                if (char.type === 'slime') {
-                    if (!cell.building && !cell.obstacle) {
-                        neighbors.push({x: nx, y: ny});
-                    }
-                } else {
-                    // 市民と冒険者はレンガ舗装された「道」だけを歩く！ (建物や障害物は避ける)
-                    if (cell.tileType === 'dirt' && !cell.building && !cell.obstacle) {
-                        neighbors.push({x: nx, y: ny});
-                    }
+            // スライムはモンスターなので、道路以外の草地も自由に歩ける
+            if (char.type === 'slime') {
+                if (!cell.building && !cell.obstacle) {
+                    neighbors.push({x: nx, y: ny});
+                }
+            } else {
+                // 市民と冒険者はレンガ舗装された「道」だけを歩く！ (建物や障害物は避ける)
+                if (cell.tileType === 'dirt' && !cell.building && !cell.obstacle) {
+                    neighbors.push({x: nx, y: ny});
                 }
             }
         }
@@ -1611,17 +1716,14 @@ function setRandomTarget(char) {
         char.targetX = choice.x;
         char.targetY = choice.y;
     } else {
-        // もし道路の上にいないか、周囲に道路が無い場合の脱出フォールバック
+        // 周辺に動ける道路が無い場合の脱出フォールバック（隣接する空きセル）
         const fallbackNeighbors = [];
-        for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
-                if (dx === 0 && dy === 0) continue;
-                const nx = Math.max(0, Math.min(GRID_SIZE - 1, currentX + dx));
-                const ny = Math.max(0, Math.min(GRID_SIZE - 1, currentY + dy));
-                const cell = state.grid[ny][nx];
-                if (!cell.building && !cell.obstacle) {
-                    fallbackNeighbors.push({x: nx, y: ny});
-                }
+        for (const dir of dirs) {
+            const nx = Math.max(0, Math.min(GRID_SIZE - 1, currentX + dir.dx));
+            const ny = Math.max(0, Math.min(GRID_SIZE - 1, currentY + dir.dy));
+            const cell = state.grid[ny][nx];
+            if (!cell.building && !cell.obstacle) {
+                fallbackNeighbors.push({x: nx, y: ny});
             }
         }
         if (fallbackNeighbors.length > 0) {
@@ -1666,6 +1768,7 @@ function adventurerAI(char) {
             char.targetX = enemy.x;
             char.targetY = enemy.y;
             char.state = 'walk_to_target';
+            char.path = []; // 追いかけ中は復帰パスをクリア
         }
         return;
     }
@@ -1688,6 +1791,7 @@ function adventurerAI(char) {
     if (closestSlime) {
         char.targetEnemy = closestSlime;
         char.state = 'walk_to_target';
+        char.path = []; // ターゲット検知時も復帰パスをクリア
         createEmoteBubble(char.id, '⚔️');
     }
 }
