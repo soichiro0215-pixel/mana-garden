@@ -319,8 +319,7 @@ function playChibiVoice(voiceType, delay = 0) {
         osc2.frequency.linearRampToValueAtTime(1051.50, now + 0.05);
         osc2.frequency.exponentialRampToValueAtTime(885.00, now + 0.15);
         
-        gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.linearRampToValueAtTime(0.18, now + 0.02); // 音量をアップ
+        gain.gain.setValueAtTime(0.18, now); // 直接アタック値から開始（遅延による無音化を完全防止）
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
         
         osc1.connect(gain);
@@ -345,8 +344,7 @@ function playChibiVoice(voiceType, delay = 0) {
         filter.type = 'lowpass';
         filter.frequency.setValueAtTime(2000, now);
         
-        gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.linearRampToValueAtTime(0.20, now + 0.01);
+        gain.gain.setValueAtTime(0.20, now); // 直接アタック値から開始（遅延防止）
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
         
         osc.connect(filter);
@@ -365,8 +363,7 @@ function playChibiVoice(voiceType, delay = 0) {
         osc.frequency.setValueAtTime(550, now);
         osc.frequency.linearRampToValueAtTime(1300, now + 0.06);
         
-        gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.linearRampToValueAtTime(0.16, now + 0.01);
+        gain.gain.setValueAtTime(0.16, now); // 直接アタック値から開始（遅延防止）
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.10);
         
         osc.connect(gain);
@@ -389,9 +386,7 @@ function playChibiVoice(voiceType, delay = 0) {
         osc2.frequency.setValueAtTime(992.77, now);
         osc2.frequency.setValueAtTime(1323.51, now + 0.05);
         
-        gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.linearRampToValueAtTime(0.15, now + 0.01);
-        gain.gain.setValueAtTime(0.15, now + 0.04);
+        gain.gain.setValueAtTime(0.15, now); // 直接アタック値から開始（遅延防止）
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
         
         osc1.connect(gain);
@@ -643,175 +638,180 @@ function playCymbalCrash(duration, delay = 0) {
 
 // 荘厳でかっこいい王宮風のファンファーレ
 function playVictoryFanfare() {
-    if (!state.audio.soundEnabled || !state.audio.ctx) return;
-    const ctx = state.audio.ctx;
-    if (ctx.state === 'suspended') {
-        ctx.resume();
-    }
-    
-    // 正確な音階周波数定義
-    const N = {
-        C2: 65.41, D2: 73.42, Eb2: 77.78, E2: 82.41, F2: 87.31, G2: 98.00, Ab2: 103.83, A2: 110.00, Bb2: 116.54, B2: 123.47,
-        C3: 130.81, D3: 146.83, Eb3: 155.56, E3: 164.81, F3: 174.61, G3: 196.00, Ab3: 207.65, A3: 220.00, Bb3: 233.08, B3: 246.94,
-        C4: 261.63, D4: 293.66, Eb4: 311.13, E4: 329.63, F4: 349.23, G4: 392.00, Ab4: 415.30, A4: 440.00, Bb4: 466.16, B4: 493.88,
-        C5: 523.25, D5: 587.33, Eb5: 622.25, E5: 659.25, F5: 698.46, G5: 783.99, Ab5: 830.61, A5: 880.00, Bb5: 932.33, B5: 987.77,
-        C6: 1046.50
-    };
+    try {
+        if (!state.audio.soundEnabled || !state.audio.ctx) return;
+        const ctx = state.audio.ctx;
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
+        
+        // 正確な音階周波数定義
+        const N = {
+            C2: 65.41, D2: 73.42, Eb2: 77.78, E2: 82.41, F2: 87.31, G2: 98.00, Ab2: 103.83, A2: 110.00, Bb2: 116.54, B2: 123.47,
+            C3: 130.81, D3: 146.83, Eb3: 155.56, E3: 164.81, F3: 174.61, G3: 196.00, Ab3: 207.65, A3: 220.00, Bb3: 233.08, B3: 246.94,
+            C4: 261.63, D4: 293.66, Eb4: 311.13, E4: 329.63, F4: 349.23, Fsharp4: 369.99, G4: 392.00, Ab4: 415.30, A4: 440.00, Bb4: 466.16, B4: 493.88,
+            C5: 523.25, D5: 587.33, Eb5: 622.25, E5: 659.25, F5: 698.46, G5: 783.99, Ab5: 830.61, A5: 880.00, Bb5: 932.33, B5: 987.77,
+            C6: 1046.50
+        };
 
-    const beatDur = 0.4; // 150 BPM
+        const beatDur = 0.4; // 150 BPM
+        
+        const playChord = (chordNotes, bassNotes, beat, duration) => {
+            const delay = beat * beatDur;
+            chordNotes.forEach(freq => {
+                playBrassNote(freq, duration * beatDur, delay);
+            });
+            const validBass = bassNotes.filter(f => f !== undefined);
+            validBass.forEach(freq => {
+                playBrassNote(freq, duration * beatDur, delay);
+            });
+        };
+        
+        const playDrum = (freq, beat, duration) => {
+            playTimpani(freq, duration * beatDur, beat * beatDur);
+        };
+
+        // --- 第1フレーズ：勇壮な立ち上がり ---
+        // Beat 0: C Major
+        playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 0.0, 0.45);
+        playDrum(80, 0.0, 0.5);
+        
+        // Beat 0.5: C Major short
+        playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 0.5, 0.2);
+        
+        // Beat 0.75: C Major short
+        playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 0.75, 0.2);
+        
+        // Beat 1.0: F Major (サブドミナント)
+        playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 1.0, 0.9);
+        playDrum(87, 1.0, 0.8);
+        
+        // Beat 2.0: F Major
+        playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 2.0, 0.45);
+        playDrum(87, 2.0, 0.5);
+        
+        // Beat 2.5: F Major short
+        playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 2.5, 0.2);
+        
+        // Beat 2.75: F Major short
+        playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 2.75, 0.2);
+        
+        // Beat 3.0: G Major (ドミナント)
+        playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 3.0, 0.9);
+        playDrum(98, 3.0, 0.8);
+        
+        // Beat 4.0: C Major (一時解決)
+        playChord([N.E4, N.G4, N.C5], [N.C2, N.C3], 4.0, 0.7);
+        playDrum(80, 4.0, 0.7);
+        
+        // Beat 4.75: D Minor short
+        playChord([N.F4, N.A4, N.D5], [N.D2, N.D3], 4.75, 0.2);
+        
+        // Beat 5.0: G Major
+        playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 5.0, 0.9);
+        playDrum(98, 5.0, 0.8);
+        
+        // Beat 6.0: A Minor
+        playChord([N.A4, N.C5, N.E5, N.A5], [N.A2, N.A3], 6.0, 0.7);
+        playDrum(110, 6.0, 0.7);
+        
+        // Beat 6.75: F Major short
+        playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 6.75, 0.2);
+        
+        // Beat 7.0: G Major
+        playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 7.0, 0.9);
+        playDrum(98, 7.0, 0.8);
+        
+        // --- 第2フレーズ：高揚感と更なる展開 ---
+        // Beat 8.0: C Major
+        playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 8.0, 0.45);
+        playDrum(80, 8.0, 0.5);
+        
+        // Beat 8.5: C Major short
+        playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 8.5, 0.2);
+        
+        // Beat 8.75: C Major short
+        playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 8.75, 0.2);
+        
+        // Beat 9.0: F Major
+        playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 9.0, 0.9);
+        playDrum(87, 9.0, 0.8);
+        
+        // Beat 10.0: G Major
+        playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 10.0, 0.7);
+        playDrum(98, 10.0, 0.7);
+        
+        // Beat 10.75: A Minor short
+        playChord([N.A4, N.C5, N.E5, N.A5], [N.A2, N.A3], 10.75, 0.2);
+        
+        // Beat 11.0: Bb Major (平坦VII度の映画音楽風で英雄的な和音！)
+        playChord([N.Bb4, N.D5, N.F5, N.Bb5], [N.Bb2, N.Bb3], 11.0, 0.9);
+        playDrum(116, 11.0, 0.8);
+        
+        // Beat 12.0: C Major
+        playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 12.0, 0.7);
+        playDrum(80, 12.0, 0.7);
+        
+        // Beat 12.75: D Major (ダブルドミナント) short
+        playChord([N.D4, N.Fsharp4, N.A4, N.D5], [N.D2, N.D3], 12.75, 0.2);
+        
+        // Beat 13.0: G Major
+        playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 13.0, 0.9);
+        playDrum(98, 13.0, 0.8);
+        
+        // --- 第3フレーズ：クライマックスへの架け橋と終止 ---
+        // Beat 14.0: Ab Major (平坦VI度 - ドラマチックな緊張)
+        playChord([N.Ab4, N.C5, N.Eb5, N.Ab5], [N.Ab2, N.Ab3], 14.0, 1.1);
+        playDrum(104, 14.0, 1.0);
+        
+        // Beat 15.2: Bb Major (平坦VII度 - 解決への最後の加速)
+        playChord([N.Bb4, N.D5, N.F5, N.Bb5], [N.Bb2, N.Bb3], 15.2, 1.1);
+        playDrum(116, 15.2, 1.0);
+        
+        // クライマックス直前の緊迫したティンパニロール (15.2拍から16.4拍まで連打)
+        for (let r = 0; r < 7; r++) {
+            const rollBeat = 15.2 + (r * 0.2);
+            playTimpani(116 - (r * 4), 0.18 * beatDur, rollBeat * beatDur);
+        }
+        
+        // Beat 16.5: 最後の圧倒的かつ壮大な C Major 解決和音！
+        const finalChord = [N.C3, N.G3, N.C4, N.E4, N.G4, N.C5, N.E5, N.G5, N.C6];
+        const finalBass = [N.C2, N.G2];
+        playChord(finalChord, finalBass, 16.5, 5.0);
+        
+        // ティンパニの大音量アタックとシンバルクラッシュの重なり
+        playDrum(80, 16.5, 1.5);
+        playCymbalCrash(4.5, 16.5 * beatDur);
     
-    const playChord = (chordNotes, bassNotes, beat, duration) => {
-        const delay = beat * beatDur;
-        chordNotes.forEach(freq => {
-            playBrassNote(freq, duration * beatDur, delay);
+        // 世界樹開花を彩る高音のマジカルアルペジオ（グロッケンシュピール風）
+        const finalTime = 16.5 * beatDur;
+        const glockFreqs = [1046.50, 1318.51, 1567.98, 2093.00, 2637.02, 3135.96, 4186.01];
+        
+        const playGlockNote = (freq, delayTime) => {
+            const now = ctx.currentTime + delayTime;
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now);
+            
+            gainNode.gain.setValueAtTime(0.0001, now);
+            gainNode.gain.linearRampToValueAtTime(0.05, now + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+            
+            osc.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            osc.start(now);
+            osc.stop(now + 0.8);
+        };
+        
+        glockFreqs.forEach((freq, idx) => {
+            playGlockNote(freq, finalTime + idx * 0.08);
         });
-        bassNotes.forEach(freq => {
-            playBrassNote(freq, duration * beatDur, delay);
-        });
-    };
-    
-    const playDrum = (freq, beat, duration) => {
-        playTimpani(freq, duration * beatDur, beat * beatDur);
-    };
-
-    // --- 第1フレーズ：勇壮な立ち上がり ---
-    // Beat 0: C Major
-    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 0.0, 0.45);
-    playDrum(80, 0.0, 0.5);
-    
-    // Beat 0.5: C Major short
-    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 0.5, 0.2);
-    
-    // Beat 0.75: C Major short
-    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 0.75, 0.2);
-    
-    // Beat 1.0: F Major (サブドミナント)
-    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 1.0, 0.9);
-    playDrum(87, 1.0, 0.8);
-    
-    // Beat 2.0: F Major
-    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 2.0, 0.45);
-    playDrum(87, 2.0, 0.5);
-    
-    // Beat 2.5: F Major short
-    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 2.5, 0.2);
-    
-    // Beat 2.75: F Major short
-    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 2.75, 0.2);
-    
-    // Beat 3.0: G Major (ドミナント)
-    playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 3.0, 0.9);
-    playDrum(98, 3.0, 0.8);
-    
-    // Beat 4.0: C Major (一時解決)
-    playChord([N.E4, N.G4, N.C5], [N.C2, N.C3], 4.0, 0.7);
-    playDrum(80, 4.0, 0.7);
-    
-    // Beat 4.75: D Minor short
-    playChord([N.F4, N.A4, N.D5], [N.D2, N.D3], 4.75, 0.2);
-    
-    // Beat 5.0: G Major
-    playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 5.0, 0.9);
-    playDrum(98, 5.0, 0.8);
-    
-    // Beat 6.0: A Minor
-    playChord([N.A4, N.C5, N.E5, N.A5], [N.A2, N.A3], 6.0, 0.7);
-    playDrum(110, 6.0, 0.7);
-    
-    // Beat 6.75: F Major short
-    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 6.75, 0.2);
-    
-    // Beat 7.0: G Major
-    playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 7.0, 0.9);
-    playDrum(98, 7.0, 0.8);
-    
-    // --- 第2フレーズ：高揚感と更なる展開 ---
-    // Beat 8.0: C Major
-    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 8.0, 0.45);
-    playDrum(80, 8.0, 0.5);
-    
-    // Beat 8.5: C Major short
-    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 8.5, 0.2);
-    
-    // Beat 8.75: C Major short
-    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 8.75, 0.2);
-    
-    // Beat 9.0: F Major
-    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 9.0, 0.9);
-    playDrum(87, 9.0, 0.8);
-    
-    // Beat 10.0: G Major
-    playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 10.0, 0.7);
-    playDrum(98, 10.0, 0.7);
-    
-    // Beat 10.75: A Minor short
-    playChord([N.A4, N.C5, N.E5, N.A5], [N.A2, N.A3], 10.75, 0.2);
-    
-    // Beat 11.0: Bb Major (平坦VII度の映画音楽風で英雄的な和音！)
-    playChord([N.Bb4, N.D5, N.F5, N.Bb5], [N.Bb2, N.Bb3], 11.0, 0.9);
-    playDrum(116, 11.0, 0.8);
-    
-    // Beat 12.0: C Major
-    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 12.0, 0.7);
-    playDrum(80, 12.0, 0.7);
-    
-    // Beat 12.75: D Major (ダブルドミナント) short
-    playChord([N.D4, N.Fsharp4, N.A4, N.D5], [N.D2, N.D3], 12.75, 0.2);
-    
-    // Beat 13.0: G Major
-    playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 13.0, 0.9);
-    playDrum(98, 13.0, 0.8);
-    
-    // --- 第3フレーズ：クライマックスへの架け橋と終止 ---
-    // Beat 14.0: Ab Major (平坦VI度 - ドラマチックな緊張)
-    playChord([N.Ab4, N.C5, N.Eb5, N.Ab5], [N.Ab2, N.Ab3], 14.0, 1.1);
-    playDrum(104, 14.0, 1.0);
-    
-    // Beat 15.2: Bb Major (平坦VII度 - 解決への最後の加速)
-    playChord([N.Bb4, N.D5, N.F5, N.Bb5], [N.Bb2, N.Bb3], 15.2, 1.1);
-    playDrum(116, 15.2, 1.0);
-    
-    // クライマックス直前の緊迫したティンパニロール (15.2拍から16.4拍まで連打)
-    for (let r = 0; r < 7; r++) {
-        const rollBeat = 15.2 + (r * 0.2);
-        playTimpani(116 - (r * 4), 0.18 * beatDur, rollBeat * beatDur);
+    } catch (e) {
+        console.error("Victory fanfare play failed:", e);
     }
-    
-    // Beat 16.5: 最後の圧倒的かつ壮大な C Major 解決和音！
-    const finalChord = [N.C3, N.G3, N.C4, N.E4, N.G4, N.C5, N.E5, N.G5, N.C6];
-    const finalBass = [N.C2, N.G2];
-    playChord(finalChord, finalBass, 16.5, 5.0);
-    
-    // ティンパニの大音量アタックとシンバルクラッシュの重なり
-    playDrum(80, 16.5, 1.5);
-    playCymbalCrash(4.5, 16.5 * beatDur);
-
-    // 世界樹開花を彩る高音のマジカルアルペジオ（グロッケンシュピール風）
-    const finalTime = 16.5 * beatDur;
-    const glockFreqs = [1046.50, 1318.51, 1567.98, 2093.00, 2637.02, 3135.96, 4186.01];
-    
-    const playGlockNote = (freq, delayTime) => {
-        const now = ctx.currentTime + delayTime;
-        const osc = ctx.createOscillator();
-        const gainNode = ctx.createGain();
-        
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, now);
-        
-        gainNode.gain.setValueAtTime(0.0001, now);
-        gainNode.gain.linearRampToValueAtTime(0.05, now + 0.01);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
-        
-        osc.connect(gainNode);
-        gainNode.connect(ctx.destination);
-        
-        osc.start(now);
-        osc.stop(now + 0.8);
-    };
-    
-    glockFreqs.forEach((freq, idx) => {
-        playGlockNote(freq, finalTime + idx * 0.08);
-    });
 }
 
 function startTitleBGM() {
@@ -2217,6 +2217,7 @@ function attackEnemy(attacker, defender) {
             state.characters.splice(index, 1);
             
             playSlimeDeathSound();
+            playChibiVoice('spawn'); // スライム撃破時の喜びのちびボイス
             
             const goldReward = 15;
             state.resources.gold += goldReward;
@@ -2376,6 +2377,7 @@ function completeQuest(factionKey) {
     if (!quest || quest.current < quest.target) return;
     
     playQuestClearSound();
+    playChibiVoice('spawn'); // クエスト達成時の喜びのちびボイス
     
     faction.rep += quest.repReward;
     
@@ -2683,6 +2685,10 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // 初回の画面クリック・タッチでタイトル画面用BGMを再生
     const startTitleMusicOnInteraction = () => {
+        // スタート画面が既に閉じている場合はタイトル音楽を開始しない
+        const startScreen = document.getElementById('start-screen');
+        if (!startScreen || startScreen.classList.contains('hidden')) return;
+
         if (!state.audio.ctx || state.audio.ctx.state === 'suspended') {
             startTitleBGM();
         }
@@ -2692,7 +2698,8 @@ window.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('click', startTitleMusicOnInteraction);
     window.addEventListener('touchstart', startTitleMusicOnInteraction);
 
-    document.getElementById('btn-start').addEventListener('click', () => {
+    document.getElementById('btn-start').addEventListener('click', (e) => {
+        e.stopPropagation(); // windowへのイベントバブリングを防いでタイトル曲の開始を防ぐ
         window.removeEventListener('click', startTitleMusicOnInteraction);
         window.removeEventListener('touchstart', startTitleMusicOnInteraction);
         
