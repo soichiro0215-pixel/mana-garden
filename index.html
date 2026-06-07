@@ -28,119 +28,137 @@
     <div id="game-container" class="hidden">
         <!-- 上部 HUD -->
         <header id="hud" class="glass">
-            <div class="hud-item" id="hud-gold" title="ゴールド: 建物の建設やアップグレードに使用">
+            <div class="hud-item" id="hud-gold" data-tip="🪙 <b>ゴールド:</b> 建物の建設やアップグレードに使用します。民家や酒場から回収されます。">
                 <span class="hud-icon">🪙</span>
-                <span class="hud-value">100</span>
+                <span class="hud-value">150</span>
                 <span class="hud-change" id="gold-change">+0/s</span>
             </div>
-            <div class="hud-item" id="hud-wood" title="木材: 建物の建設やアップグレードに使用">
+            <div class="hud-item" id="hud-wood" data-tip="🪵 <b>木材:</b> 建物の建設に使用します。木こり小屋やマップの枯れ木を開拓することで手に入ります。">
                 <span class="hud-icon">🪵</span>
-                <span class="hud-value">50</span>
+                <span class="hud-value">80</span>
                 <span class="hud-change" id="wood-change">+0/s</span>
             </div>
-            <div class="hud-item" id="hud-mana" title="マナ: 魔法の詠唱や研究に使用">
+            <div class="hud-item" id="hud-mana" data-tip="✨ <b>マナ:</b> 魔法の使用や研究に使用します。魔力塔から生産されるほか、スライム討伐でも獲得できます。">
                 <span class="hud-icon">✨</span>
-                <span class="hud-value">30</span>
+                <span class="hud-value">40</span>
                 <span class="hud-change" id="mana-change">+0/s</span>
             </div>
-            <div class="hud-item" id="hud-pop" title="住民数 / 最大住民数">
+            <div class="hud-item" id="hud-pop" data-tip="👥 <b>住民数:</b> 街に暮らす住人の数です。民家を建てることで最大住民数が増え、自動で集まってきます。">
                 <span class="hud-icon">👥</span>
                 <span class="hud-value">0 / 5</span>
             </div>
-            <div class="hud-item" id="hud-happy" title="住民の幸福度: 生産性に影響します">
+            <div class="hud-item" id="hud-happy" data-tip="😊 <b>幸福度:</b> 住民の満足度です。スライムが街に侵入すると下がります。幸福度が高いとゴールド生産にボーナスがつきます。">
                 <span class="hud-icon">😊</span>
                 <span class="hud-value">100%</span>
             </div>
             <div class="hud-actions">
-                <button id="btn-sound" class="btn btn-icon" title="サウンドのON/OFF">🔊</button>
+                <button id="btn-help" class="btn btn-icon" data-tip="❓ 遊び方ガイドを開く">❓</button>
+                <button id="btn-sound" class="btn btn-icon" data-tip="🔊 サウンドのON/OFF">🔊</button>
             </div>
         </header>
 
-        <!-- メインゲームエリア（ドラッグ＆ズーム可能） -->
+        <!-- 画面上のズームコントロール -->
+        <div id="zoom-controls" class="glass">
+            <button id="btn-zoom-in" class="zoom-btn" data-tip="🔍 拡大 (Ctrl+ホイールでも可能)">➕</button>
+            <button id="btn-zoom-reset" class="zoom-btn" data-tip="🏠 マップ位置を中央にリセット">🏠</button>
+            <button id="btn-zoom-out" class="zoom-btn" data-tip="🔍 縮小 (Ctrl+ホイールでも可能)">➖</button>
+        </div>
+
+        <!-- メインゲームエリア（ドラッグ＆ホイールスクロール可能） -->
         <main id="viewport">
+            <!-- 海背景（浮遊島感を出すための背景レイヤー） -->
+            <div id="sky-background"></div>
             <div id="game-board">
+                <!-- 浮遊島のベース（立体的な影） -->
+                <div id="island-base"></div>
                 <!-- グリッドセル、建物、キャラクターなどが動的に生成される -->
             </div>
         </main>
 
         <!-- 左側：魔法の書（スペルブック） -->
-        <aside id="spell-book" class="glass">
-            <h3>魔法書 📖</h3>
-            <div class="spell-list">
-                <button class="spell-btn" id="spell-rain" data-spell="rain" title="「成長の雨」: 60秒間、全資源の生産速度が2倍になる。消費マナ: 20">
-                    <span class="spell-icon">🌧️</span>
-                    <span class="spell-name">成長の雨</span>
-                    <span class="spell-cost">✨20</span>
-                </button>
-                <button class="spell-btn" id="spell-surge" data-spell="surge" title="「マナの奔流」: 即座にマナ+50を獲得。消費ゴールド: 50">
-                    <span class="spell-icon">🌀</span>
-                    <span class="spell-name">マナの奔流</span>
-                    <span class="spell-cost">🪙50</span>
-                </button>
-                <button class="spell-btn" id="spell-slime" data-spell="slime" title="「スライム召喚」: 街にかわいいスライムを呼び出す（討伐時の資源稼ぎ用）。消費マナ: 10">
-                    <span class="spell-icon">💧</span>
-                    <span class="spell-name">スライム召喚</span>
-                    <span class="spell-cost">✨10</span>
-                </button>
-                <button class="spell-btn" id="spell-cleanse" data-spell="cleanse" title="「浄化の光」: 選択したタイルのスライムを即座に消滅させる。消費マナ: 15">
-                    <span class="spell-icon">☀️</span>
-                    <span class="spell-name">浄化の光</span>
-                    <span class="spell-cost">✨15</span>
-                </button>
+        <aside id="spell-book" class="glass panel-collapsible">
+            <button class="btn-toggle-panel" id="btn-toggle-spell" data-tip="魔法書を開閉">◀</button>
+            <div class="panel-content">
+                <h3>魔法書 📖</h3>
+                <div class="spell-list">
+                    <button class="spell-btn" id="spell-rain" data-spell="rain" data-tip="🌧️ <b>成長の雨 (消費マナ: 20)</b><br>40秒間、全施設の資源生産速度が <b>2倍</b> になります。">
+                        <span class="spell-icon">🌧️</span>
+                        <span class="spell-name">成長の雨</span>
+                        <span class="spell-cost">✨20</span>
+                    </button>
+                    <button class="spell-btn" id="spell-surge" data-spell="surge" data-tip="🌀 <b>マナの奔流 (消費ゴールド: 50)</b><br>瞬時に <b>マナ +50</b> を獲得します。ゴールドをエネルギーに変換する秘術。">
+                        <span class="spell-icon">🌀</span>
+                        <span class="spell-name">マナの奔流</span>
+                        <span class="spell-cost">🪙50</span>
+                    </button>
+                    <button class="spell-btn" id="spell-slime" data-spell="slime" data-tip="💧 <b>スライム召喚 (消費マナ: 10)</b><br>街の端にスライムを1匹召喚します。冒険者に倒させてゴールドや経験値を稼がせるのに便利です。">
+                        <span class="spell-icon">💧</span>
+                        <span class="spell-name">スライム召喚</span>
+                        <span class="spell-cost">✨10</span>
+                    </button>
+                    <button class="spell-btn" id="spell-cleanse" data-spell="cleanse" data-tip="☀️ <b>浄化の光 (消費マナ: 15)</b><br>選択したタイルのスライムや障害物（枯れ木や魔力岩）を即座に消滅・浄化させます。">
+                        <span class="spell-icon">☀️</span>
+                        <span class="spell-name">浄化の光</span>
+                        <span class="spell-cost">✨15</span>
+                    </button>
+                </div>
+                <!-- アクティブ魔法のクールダウン・持続表示 -->
+                <div id="active-effects"></div>
             </div>
-            <!-- アクティブ魔法のクールダウン・持続表示 -->
-            <div id="active-effects"></div>
         </aside>
 
         <!-- 右側：勢力クエスト（政治要素） -->
-        <aside id="faction-panel" class="glass">
-            <h3>政治・勢力 👑</h3>
-            <div class="faction-list">
-                <!-- 王宮 -->
-                <div class="faction-item" id="faction-royal">
-                    <div class="faction-header">
-                        <img src="assets/avatar_king.png" class="faction-avatar" alt="King">
-                        <div>
-                            <h4>王宮</h4>
-                            <div class="rep-bar-container"><div class="rep-bar" style="width: 50%"></div></div>
-                            <span class="rep-text">友好度: 中立 (50)</span>
+        <aside id="faction-panel" class="glass panel-collapsible">
+            <button class="btn-toggle-panel" id="btn-toggle-faction" data-tip="勢力クエストを開閉">▶</button>
+            <div class="panel-content">
+                <h3>政治・勢力 👑</h3>
+                <div class="faction-list">
+                    <!-- 王宮 -->
+                    <div class="faction-item" id="faction-royal">
+                        <div class="faction-header">
+                            <img src="assets/avatar_king.png" class="faction-avatar" alt="King">
+                            <div>
+                                <h4>王宮</h4>
+                                <div class="rep-bar-container"><div class="rep-bar" style="width: 50%"></div></div>
+                                <span class="rep-text">友好度: 中立 (50)</span>
+                            </div>
+                        </div>
+                        <div class="faction-quest" id="quest-royal">
+                            <p class="quest-desc">クエスト: 読込中...</p>
+                            <button class="btn btn-xs btn-quest" id="btn-quest-royal">報告する</button>
                         </div>
                     </div>
-                    <div class="faction-quest" id="quest-royal">
-                        <p class="quest-desc">クエスト: 読込中...</p>
-                        <button class="btn btn-xs btn-quest" id="btn-quest-royal">報告する</button>
-                    </div>
-                </div>
 
-                <!-- 冒険者ギルド -->
-                <div class="faction-item" id="faction-guild">
-                    <div class="faction-header">
-                        <img src="assets/avatar_guildmaster.png" class="faction-avatar" alt="Guild Master">
-                        <div>
-                            <h4>冒険者ギルド</h4>
-                            <div class="rep-bar-container"><div class="rep-bar" style="width: 50%"></div></div>
-                            <span class="rep-text">友好度: 中立 (50)</span>
+                    <!-- 冒険者ギルド -->
+                    <div class="faction-item" id="faction-guild">
+                        <div class="faction-header">
+                            <img src="assets/avatar_guildmaster.png" class="faction-avatar" alt="Guild Master">
+                            <div>
+                                <h4>冒険者ギルド</h4>
+                                <div class="rep-bar-container"><div class="rep-bar" style="width: 50%"></div></div>
+                                <span class="rep-text">友好度: 中立 (50)</span>
+                            </div>
+                        </div>
+                        <div class="faction-quest" id="quest-guild">
+                            <p class="quest-desc">クエスト: 読込中...</p>
+                            <button class="btn btn-xs btn-quest" id="btn-quest-guild">報告する</button>
                         </div>
                     </div>
-                    <div class="faction-quest" id="quest-guild">
-                        <p class="quest-desc">クエスト: 読込中...</p>
-                        <button class="btn btn-xs btn-quest" id="btn-quest-guild">報告する</button>
-                    </div>
-                </div>
 
-                <!-- 大魔導書院 -->
-                <div class="faction-item" id="faction-archive">
-                    <div class="faction-header">
-                        <img src="assets/avatar_archmage.png" class="faction-avatar" alt="Archmage">
-                        <div>
-                            <h4>大魔導書院</h4>
-                            <div class="rep-bar-container"><div class="rep-bar" style="width: 50%"></div></div>
-                            <span class="rep-text">友好度: 中立 (50)</span>
+                    <!-- 大魔導書院 -->
+                    <div class="faction-item" id="faction-archive">
+                        <div class="faction-header">
+                            <img src="assets/avatar_archmage.png" class="faction-avatar" alt="Archmage">
+                            <div>
+                                <h4>大魔導書院</h4>
+                                <div class="rep-bar-container"><div class="rep-bar" style="width: 50%"></div></div>
+                                <span class="rep-text">友好度: 中立 (50)</span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="faction-quest" id="quest-archive">
-                        <p class="quest-desc">クエスト: 読込中...</p>
-                        <button class="btn btn-xs btn-quest" id="btn-quest-archive">報告する</button>
+                        <div class="faction-quest" id="quest-archive">
+                            <p class="quest-desc">クエスト: 読込中...</p>
+                            <button class="btn btn-xs btn-quest" id="btn-quest-archive">報告する</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -155,27 +173,27 @@
             <div class="shop-items-container">
                 <!-- 建築物リスト -->
                 <div class="shop-tab-content active" id="tab-build">
-                    <button class="shop-item" data-build="house" title="「民家」: 最大住民数+2。時間経過でゴールドを生産します。">
+                    <button class="shop-item" data-build="house" data-tip="🏠 <b>民家 (🪙40 🪵20)</b><br>住民が住むかわいい家。<br>・最大住民数 <b>+2</b><br>・生産: <b>ゴールド +1.5/秒</b>">
                         <div class="shop-item-preview"><img src="assets/house.png" alt="House"></div>
                         <span class="shop-item-name">民家</span>
                         <span class="shop-item-cost">🪙40 🪵20</span>
                     </button>
-                    <button class="shop-item" data-build="lumberjack" title="「木こり小屋」: 周囲から木材を切り出します。">
+                    <button class="shop-item" data-build="lumberjack" data-tip="🪵 <b>木こり小屋 (🪙30 🪵10)</b><br>森の木を切るワークショップ。<br>・生産: <b>木材 +1.0/秒</b>">
                         <div class="shop-item-preview"><img src="assets/lumberjack.png" alt="Lumberjack"></div>
                         <span class="shop-item-name">木こり小屋</span>
                         <span class="shop-item-cost">🪙30 🪵10</span>
                     </button>
-                    <button class="shop-item" data-build="mana_tower" title="「魔力塔」: マナを空気中から集めて蓄積します。">
+                    <button class="shop-item" data-build="mana_tower" data-tip="🔮 <b>魔力塔 (🪙50 ✨15)</b><br>マナを集める魔術タワー。<br>・生産: <b>マナ +0.8/秒</b>">
                         <div class="shop-item-preview"><img src="assets/mana_tower.png" alt="Mana Tower"></div>
                         <span class="shop-item-name">魔力塔</span>
                         <span class="shop-item-cost">🪙50 ✨15</span>
                     </button>
-                    <button class="shop-item" data-build="tavern" title="「冒険者の酒場」: 冒険者を街に呼び込みます。ゴールドも少し生産。">
+                    <button class="shop-item" data-build="tavern" data-tip="🍻 <b>冒険者の酒場 (🪙80 🪵50)</b><br>冒険者を街に招く場所。<br>・生産: <b>ゴールド +0.8/秒</b><br>・効果: パトロールする <b>魔導士</b> を召喚">
                         <div class="shop-item-preview"><img src="assets/tavern.png" alt="Tavern"></div>
                         <span class="shop-item-name">冒険者の酒場</span>
                         <span class="shop-item-cost">🪙80 🪵50</span>
                     </button>
-                    <button class="shop-item" data-build="barracks" title="「騎士団兵舎」: 街を巡回する兵士（戦士）を配置します。スライム退治が得意。">
+                    <button class="shop-item" data-build="barracks" data-tip="⚔️ <b>騎士団兵舎 (🪙100 🪵60 ✨20)</b><br>兵士が訓練する施設。<br>・効果: スライム退治が得意な <b>騎士</b> を召喚">
                         <div class="shop-item-preview"><img src="assets/barracks.png" alt="Barracks"></div>
                         <span class="shop-item-name">騎士団兵舎</span>
                         <span class="shop-item-cost">🪙100 🪵60 ✨20</span>
@@ -183,14 +201,14 @@
                 </div>
                 <!-- 道路リスト -->
                 <div class="shop-tab-content" id="tab-road">
-                    <button class="shop-item-road" data-road="dirt" title="「レンガ道」: キャラクターの移動速度が上がります。">
+                    <button class="shop-item-road" data-road="dirt" data-tip="🧱 <b>レンガ道 (🪙5)</b><br>地面をレンガで舗装します。<br>・効果: キャラクターの歩くスピードが上昇します。">
                         <div class="shop-item-preview-tile"><img src="assets/dirt_path.png" alt="Dirt Path"></div>
                         <span class="shop-item-name">レンガ道</span>
                         <span class="shop-item-cost">🪙5</span>
                     </button>
-                    <button class="shop-item-road" data-road="grass" title="「草地に戻す」: タイルを自然な草地に戻します。">
+                    <button class="shop-item-road" data-road="grass" data-tip="🌿 <b>自然の草地 (🪙0)</b><br>舗装した道路を取り除き、自然な草原に戻します。">
                         <div class="shop-item-preview-tile"><img src="assets/grass_tile.png" alt="Grass Tile"></div>
-                        <span class="shop-item-name">自然の草地</span>
+                        <span class="shop-item-name">草地に戻す</span>
                         <span class="shop-item-cost">🪙0</span>
                     </button>
                 </div>
@@ -215,6 +233,49 @@
                 <button id="btn-demolish" class="btn btn-danger">撤去</button>
             </div>
         </div>
+
+        <!-- 遊び方ヘルプモーダル -->
+        <div id="help-modal" class="screen-overlay hidden">
+            <div class="help-box glass">
+                <div class="help-header">
+                    <h2>🔮 マナ・ガーデン 遊び方ガイド</h2>
+                    <button id="btn-close-help" class="btn-close">&times;</button>
+                </div>
+                <div class="help-body">
+                    <div class="help-section">
+                        <h3>1. 基本ルールとクリア目標</h3>
+                        <p>あなたは空中を漂う魔法の浮遊島の領主です。ゴールド、木材、マナを生産する施設を建て、街を豊かに育てましょう。右側の<b>「王宮」「ギルド」「大魔導書院」</b>の3大勢力から届くクエストを完了して友好度を高めることで、特別な支援（ゴールド生産バフ、精鋭ユニット、魔法割引）を獲得できます。</p>
+                    </div>
+                    <div class="help-section">
+                        <h3>2. 冒険者とスライム (防衛)</h3>
+                        <p>街の周りからかわいい<b>スライム</b>が侵入してきます。放置すると住民の「幸福度」が下がり、ゴールドの生産性が低下します。<br>
+                        「酒場」や「兵舎」を建てることで、ちび騎士や魔導士が<b>男女ペア</b>で召喚されます。彼らは自動でパトロールし、スライムを発見すると戦って討伐します。討伐するとゴールドが手に入り、冒険者は経験値を得てレベルアップします！</p>
+                    </div>
+                    <div class="help-section">
+                        <h3>3. 開拓と整地</h3>
+                        <p>島には最初に<b>枯れ木 🪵、魔力岩 💎、雑草 🌿</b> などの障害物があります。クリックして少量の資源（ゴールド/マナ）を消費することで開拓でき、木材やゴールドを獲得できます。きれいに開拓して建物を建てましょう。</p>
+                    </div>
+                    <div class="help-section">
+                        <h3>4. 魔法の使用</h3>
+                        <p>マナを消費して強力な魔法を唱えられます：<br>
+                        ・<b>成長の雨 🌧️</b>: 一定時間、全資源の生産速度が2倍になります。<br>
+                        ・<b>マナの奔流 🌀</b>: ゴールドをマナに瞬時に変換します。<br>
+                        ・<b>スライム召喚 💧</b>: 冒険者に討伐させてEXP/資源を稼ぐためスライムを呼びます。<br>
+                        ・<b>浄化の光 ☀️</b>: 選択したスライムや障害物を即座に消し去ります。</p>
+                    </div>
+                    <div class="help-section">
+                        <h3>5. 操作方法</h3>
+                        <p>・<b>画面のスクロール</b>: マウスドラッグ、またはホイール回転（スワイプ）でマップを自由にスクロールできます。<br>
+                        ・<b>拡大縮小（ズーム）</b>: 右上の「➕ / ➖」ボタン、または <b>Ctrl + ホイール回転</b> で調整できます。<br>
+                        ・<b>UI折りたたみ</b>: 左右パネルの「◀ / ▶」ボタンを押すとパネルを隠して、マップを広く見渡せます。</p>
+                    </div>
+                </div>
+                <button id="btn-help-ok" class="btn btn-primary">了解！</button>
+            </div>
+        </div>
+
+        <!-- 動的ホバーツールチップ -->
+        <div id="tooltip" class="glass hidden"></div>
 
         <!-- 浮遊する通知メッセージ -->
         <div id="toast-container"></div>

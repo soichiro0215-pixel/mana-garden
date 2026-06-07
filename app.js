@@ -61,7 +61,7 @@ const SPELLS = {
     rain: { name: '成長の雨', cost: { mana: 20, gold: 0 }, duration: 40 }, // 40秒間生産2倍
     surge: { name: 'マナの奔流', cost: { mana: 0, gold: 50 }, instant: true }, // ゴールド50をマナ50に変換
     slime: { name: 'スライム召喚', cost: { mana: 10, gold: 0 }, instant: true }, // スライム強制湧き
-    cleanse: { name: '浄化の光', cost: { mana: 15, gold: 0 }, target: true } // 指定タイルのスライムを消滅
+    cleanse: { name: '浄化の光', cost: { mana: 15, gold: 0 }, target: true } // 指定タイルのスライムや障害物を除去
 };
 
 // --- ゲーム状態管理 ---
@@ -143,7 +143,7 @@ function makeBackgroundTransparent(imgSrc) {
             try {
                 const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const data = imgData.data;
-                // 白色に近いピクセル (R, G, B すべて235以上) を透明にする
+                // 白色に近いピクセル (R, G, B すべて230以上) を透明にする
                 for (let i = 0; i < data.length; i += 4) {
                     const r = data[i];
                     const g = data[i+1];
@@ -162,7 +162,7 @@ function makeBackgroundTransparent(imgSrc) {
         };
         img.onerror = () => {
             console.error("Failed to load image: " + imgSrc);
-            resolve(imgSrc); // エラー時は元のパスを返す
+            resolve(imgSrc);
         };
         img.src = imgSrc;
     });
@@ -181,7 +181,7 @@ async function preloadAndProcessAssets() {
 }
 
 // ==========================================
-// 2. Web Audio API サウンドシステム
+// 2. Web Audio API サウンドシステム (改良版)
 // ==========================================
 
 function initAudio() {
@@ -225,7 +225,6 @@ function playSynthSound(freqs, duration, type = 'sine', volume = 0.1, delay = 0)
         osc.frequency.setValueAtTime(freq, now);
         
         gainNode.gain.setValueAtTime(volume, now);
-        // 音がブツッと切れないように指数減衰させる
         gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
         
         osc.connect(gainNode);
@@ -263,55 +262,46 @@ function playQuestClearSound() {
     
     const ctx = state.audio.ctx;
     const now = ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
     
-    // クリアな和音：C5, E5, G5, C6 (ド・ミ・ソ・ドのハーモニー)
-    const notes = [523.25, 659.25, 783.99, 1046.50];
-    
-    // 遅延をかけて幻想的に響かせる
     notes.forEach((freq, idx) => {
-        const noteDelay = idx * 0.1;
+        const noteDelay = idx * 0.08;
         const noteTime = now + noteDelay;
         
-        // キャリアオシレータ (メインの音)
         const carrier = ctx.createOscillator();
         carrier.type = 'sine';
         carrier.frequency.setValueAtTime(freq, noteTime);
         
-        // モジュレータオシレータ (金属的な倍音を加えるFM変調)
         const modulator = ctx.createOscillator();
         modulator.type = 'sine';
-        modulator.frequency.setValueAtTime(freq * 2.01, noteTime); // わずかにずらして響きを豊かに
+        modulator.frequency.setValueAtTime(freq * 2.01, noteTime);
         
         const modGain = ctx.createGain();
-        modGain.gain.setValueAtTime(freq * 1.5, noteTime);
-        modGain.gain.exponentialRampToValueAtTime(0.01, noteTime + 1.2);
+        modGain.gain.setValueAtTime(freq * 1.8, noteTime);
+        modGain.gain.exponentialRampToValueAtTime(0.01, noteTime + 1.5);
         
-        // メインの音量封筒
         const gainNode = ctx.createGain();
         gainNode.gain.setValueAtTime(0.0, noteTime);
-        gainNode.gain.linearRampToValueAtTime(0.08, noteTime + 0.05); // アタックを少し柔らかく
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, noteTime + 2.5); // ゆっくり消えていくディケイ
+        gainNode.gain.linearRampToValueAtTime(0.1, noteTime + 0.04);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, noteTime + 2.8);
         
-        // フィルターをかけて高音のノイズを抑え、まろやかにする
         const filter = ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(3000, noteTime);
-        filter.frequency.exponentialRampToValueAtTime(800, noteTime + 2.0);
+        filter.frequency.setValueAtTime(3200, noteTime);
+        filter.frequency.exponentialRampToValueAtTime(700, noteTime + 2.2);
         
-        // 接続
         modulator.connect(modGain);
-        modGain.connect(carrier.frequency); // 周波数変調(FM)
+        modGain.connect(carrier.frequency);
         
         carrier.connect(filter);
         filter.connect(gainNode);
         gainNode.connect(ctx.destination);
         
-        // 再生開始
         modulator.start(noteTime);
         carrier.start(noteTime);
         
-        modulator.stop(noteTime + 3.0);
-        carrier.stop(noteTime + 3.0);
+        modulator.stop(noteTime + 3.5);
+        carrier.stop(noteTime + 3.5);
     });
 }
 
@@ -322,85 +312,161 @@ function playMagicCastSound() {
     const now = ctx.currentTime;
     
     for (let i = 0; i < 8; i++) {
-        const delay = i * 0.06;
-        const freq = 600 + (i * 180);
-        playSynthSound([freq], 0.2, 'sine', 0.05, delay);
+        const delay = i * 0.05;
+        const freq = 500 + (i * 200);
+        playSynthSound([freq], 0.22, 'sine', 0.04, delay);
     }
 }
 
-// 自動BGM再生：やさしいアルペジオループ
+// 改良版自動BGM再生：和音パッド、ノイズドラム、ランダムペンタトニックメロディによる複数パート構成
 function startBGM() {
     if (!state.audio.soundEnabled || !state.audio.ctx) return;
     
     const ctx = state.audio.ctx;
     
-    // コード進行：Cmaj7 -> Am7 -> Fmaj7 -> G7
+    // コード進行：Cmaj7 -> Am7 -> Fmaj7 -> G7 (メジャーキー)
     const progressions = [
-        [261.63, 329.63, 392.00, 493.88], // C, E, G, B (Cmaj7)
-        [220.00, 261.63, 329.63, 392.00], // A, C, E, G (Am7)
-        [174.61, 220.00, 261.63, 349.23], // F, A, C, F (Fmaj7)
-        [196.00, 246.94, 293.66, 349.23]  // G, B, D, F (G7)
+        [130.81, 164.81, 196.00, 246.94], // C3, E3, G3, B3 (Cmaj7)
+        [110.00, 130.81, 164.81, 196.00], // A2, C3, E3, G3 (Am7)
+        [87.31, 110.00, 130.81, 174.61],  // F2, A2, C3, F3 (Fmaj7)
+        [98.00, 123.47, 146.83, 174.61]   // G2, B2, D3, F3 (G7)
     ];
     
-    let progIndex = 0;
-    let noteIndex = 0;
+    // ペンタトニックスケール (C4, D4, E4, G4, A4, C5, D5, E5, G5, A5)
+    const melodyScale = [
+        261.63, 293.66, 329.63, 392.00, 440.00,
+        523.25, 587.33, 659.25, 783.99, 880.00
+    ];
     
-    // 16分音符の間隔でステップを刻む (BPM=100程度、1拍=600ms, 8分音符=300ms)
+    let step = 0;
+    
     state.audio.bgmInterval = setInterval(() => {
         if (!state.audio.soundEnabled) return;
         
         const now = ctx.currentTime;
-        const chord = progressions[progIndex];
+        const measure = Math.floor(step / 8);
+        const beat = step % 8;
+        const chordIdx = measure % progressions.length;
+        const chord = progressions[chordIdx];
         
-        // 8分音符ごとにやさしい音を重ねる
-        if (noteIndex % 2 === 0) {
-            // ベース音 (ルート音をオクターブ下で低くやわらかく)
-            const rootNote = chord[0] / 2;
+        // ------------------------------------
+        // 1. コードパッド (白玉) & ベース (小節の頭で演奏)
+        // ------------------------------------
+        if (beat === 0) {
+            // パッド音 (三角波にローパスフィルターをかけて温かく)
+            chord.forEach((freq) => {
+                const osc = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+                const filter = ctx.createBiquadFilter();
+                
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, now);
+                
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(700, now);
+                
+                // ふんわりとしたボリューム変化 (アタックに1.2秒、リリースに0.8秒)
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.015, now + 1.2);
+                gainNode.gain.setValueAtTime(0.015, now + 2.2);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 3.1);
+                
+                osc.connect(filter);
+                filter.connect(gainNode);
+                gainNode.connect(ctx.destination);
+                
+                osc.start(now);
+                osc.stop(now + 3.2);
+            });
+            
+            // ディープベース音 (正弦波で低域をしっかり出す)
             const bassOsc = ctx.createOscillator();
             const bassGain = ctx.createGain();
+            const bassFilter = ctx.createBiquadFilter();
             
-            bassOsc.type = 'triangle';
-            bassOsc.frequency.setValueAtTime(rootNote, now);
+            bassOsc.type = 'sine';
+            bassOsc.frequency.setValueAtTime(chord[0] / 2, now); // ルートの1オクターブ下
             
-            bassGain.gain.setValueAtTime(0.03, now);
-            bassGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+            bassFilter.type = 'lowpass';
+            bassFilter.frequency.setValueAtTime(150, now);
             
-            bassOsc.connect(bassGain);
+            bassGain.gain.setValueAtTime(0, now);
+            bassGain.gain.linearRampToValueAtTime(0.025, now + 0.6);
+            bassGain.gain.exponentialRampToValueAtTime(0.0001, now + 3.0);
+            
+            bassOsc.connect(bassFilter);
+            bassFilter.connect(bassGain);
             bassGain.connect(ctx.destination);
             
             bassOsc.start(now);
-            bassOsc.stop(now + 1.5);
+            bassOsc.stop(now + 3.2);
         }
         
-        // アルペジオノート (キラキラした高音を小さく)
-        const chordNote = chord[noteIndex % chord.length];
-        const arpOsc = ctx.createOscillator();
-        const arpGain = ctx.createGain();
-        const filter = ctx.createBiquadFilter();
-        
-        arpOsc.type = 'sine';
-        // 1オクターブ上でアルペジオを奏でる
-        arpOsc.frequency.setValueAtTime(chordNote * 2.0, now);
-        
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1500, now);
-        
-        arpGain.gain.setValueAtTime(0.012, now);
-        arpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
-        
-        arpOsc.connect(filter);
-        filter.connect(arpGain);
-        arpGain.connect(ctx.destination);
-        
-        arpOsc.start(now);
-        arpOsc.stop(now + 0.8);
-        
-        noteIndex++;
-        if (noteIndex >= 8) {
-            noteIndex = 0;
-            progIndex = (progIndex + 1) % progressions.length;
+        // ------------------------------------
+        // 2. ノイズドラム (2拍・6拍目、ブラシスネア風)
+        // ------------------------------------
+        if (beat === 2 || beat === 6) {
+            try {
+                const bufferSize = ctx.sampleRate * 0.08; // 80msのノイズ
+                const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                
+                const noiseNode = ctx.createBufferSource();
+                noiseNode.buffer = buffer;
+                
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 1200;
+                
+                const gain = ctx.createGain();
+                gain.gain.setValueAtTime(0.006, now);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+                
+                noiseNode.connect(filter);
+                filter.connect(gain);
+                gain.connect(ctx.destination);
+                
+                noiseNode.start(now);
+            } catch (e) {
+                // フォールバック
+            }
         }
-    }, 320); // 320msごとにノートを生成
+        
+        // ------------------------------------
+        // 3. ランダムペンタトニックメロディ (ハープ風)
+        // ------------------------------------
+        // 35%の確率で、現在のコードと調和した美しい主旋律を即興演奏
+        if (Math.random() < 0.35 && beat !== 4 && beat !== 7) {
+            const noteFreq = melodyScale[Math.floor(Math.random() * melodyScale.length)];
+            
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            const filter = ctx.createBiquadFilter();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(noteFreq, now);
+            
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(2000, now);
+            
+            // アタックは速く、リリースはゆるやかに響かせる
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(0.015, now + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+            
+            osc.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            osc.start(now);
+            osc.stop(now + 0.7);
+        }
+        
+        step++;
+    }, 400); // 400ms間隔
 }
 
 // ==========================================
@@ -411,6 +477,11 @@ function initGame() {
     const board = document.getElementById('game-board');
     board.innerHTML = '';
     
+    // 浮遊島ベース（3D崖・影のレイヤー）をDOMに追加
+    const baseShadow = document.createElement('div');
+    baseShadow.id = 'island-base';
+    board.appendChild(baseShadow);
+    
     state.grid = [];
     state.characters = [];
     state.nextCharId = 1;
@@ -419,44 +490,61 @@ function initGame() {
     for (let r = 0; r < GRID_SIZE; r++) {
         state.grid[r] = [];
         for (let c = 0; c < GRID_SIZE; c++) {
-            // 初期状態はすべて芝生タイル
             state.grid[r][c] = {
                 col: c,
                 row: r,
                 tileType: 'grass',
-                building: null
+                building: null,
+                obstacle: null
             };
             
             createTileDOM(c, r);
         }
     }
     
-    // 初期建物の配置 (中央付近にギルド本部を配置)
+    // 障害物の初期配置 (枯れ木、魔力岩、古代の廃墟をランダムに計6個配置)
+    let obstacleCount = 0;
+    while (obstacleCount < 6) {
+        const r = Math.floor(Math.random() * GRID_SIZE);
+        const c = Math.floor(Math.random() * GRID_SIZE);
+        
+        // 中央(3,3),(4,4)は初期建物用なので避ける
+        if ((r === 3 && c === 3) || (r === 4 && c === 4)) continue;
+        if (state.grid[r][c].obstacle) continue;
+        
+        const types = ['tree', 'rock', 'ruin'];
+        const type = types[Math.floor(Math.random() * types.length)];
+        
+        state.grid[r][c].obstacle = { type: type };
+        createObstacleDOM(c, r, type);
+        obstacleCount++;
+    }
+    
+    // 初期建物の配置
     placeBuildingAt(3, 3, 'house', true); // 初期コテージ
     placeBuildingAt(4, 4, 'lumberjack', true); // 初期木こり小屋
     
     // 資源の表示更新
     updateHUD();
     
-    // 初期クエストの発行
+    // クエスト発行
     generateNewQuest('royal');
     generateNewQuest('guild');
     generateNewQuest('archive');
     
-    // スライムの定期出現タイマー (15秒ごと)
+    // スライム出現タイマー
     setInterval(() => {
         if (Math.random() < 0.6) {
             spawnSlime();
         }
     }, 15000);
     
-    // メインゲームループの開始 (0.1秒刻み)
+    // メインループ
     setInterval(gameTick, 100);
 }
 
-// グリッドセル座標をアイソメトリックピクセル座標に変換
+// セル座標をアイソメトリックピクセル座標に変換
 function getIsoCoords(col, row) {
-    // マップの中心基準
     const offset_x = 600 - (BASE_TILE_WIDTH / 2);
     const offset_y = 200;
     
@@ -474,16 +562,17 @@ function createTileDOM(col, row) {
     tileContainer.className = 'tile-container';
     tileContainer.style.left = `${x}px`;
     tileContainer.style.top = `${y}px`;
-    tileContainer.style.zIndex = col + row; // 奥のものほどZインデックスを小さく
+    tileContainer.style.zIndex = col + row;
     tileContainer.dataset.col = col;
     tileContainer.dataset.row = row;
     
     const tile = document.createElement('div');
     tile.className = 'tile';
     tile.id = `tile-${col}-${row}`;
-    
-    // 透過処理された草原アセットを設定
     tile.style.backgroundImage = `url('${state.assetsProcessed.grass}')`;
+    
+    // 初期ホバーツールチップの設定
+    tile.dataset.tip = `🌿 <b>草原タイル (${col}, ${row})</b><br>建物を建設できる平らな草地です。`;
     
     // クリックイベント
     tile.addEventListener('click', () => handleTileClick(col, row));
@@ -492,8 +581,37 @@ function createTileDOM(col, row) {
     board.appendChild(tileContainer);
 }
 
+// 障害物DOMの作成
+function createObstacleDOM(col, row, type) {
+    const tileContainer = document.querySelector(`.tile-container[data-col="${col}"][data-row="${row}"]`);
+    if (!tileContainer) return;
+    
+    const sprite = document.createElement('div');
+    if (type === 'ruin') {
+        sprite.className = `building-sprite obstacle-ruin`;
+        sprite.style.backgroundImage = `url('${state.assetsProcessed.house}')`;
+    } else {
+        sprite.className = `obstacle-sprite`;
+        sprite.textContent = type === 'tree' ? '🪵' : '🪨';
+    }
+    sprite.id = `obstacle-sprite-${col}-${row}`;
+    tileContainer.appendChild(sprite);
+    
+    // タイルのツールチップを障害物用に変更
+    const tile = document.getElementById(`tile-${col}-${row}`);
+    if (tile) {
+        if (type === 'tree') {
+            tile.dataset.tip = `🪵 <b>枯れ木</b><br>土地を塞ぐ枯れ木です。<br>・クリックして開拓 (🪙20) -> 🪵+30`;
+        } else if (type === 'rock') {
+            tile.dataset.tip = `🪨 <b>魔力岩</b><br>マナを含んだ硬い岩です。<br>・クリックして開拓 (🪙30) -> ✨+15`;
+        } else if (type === 'ruin') {
+            tile.dataset.tip = `🏚️ <b>古代の廃墟</b><br>苔むした昔の建物の跡です。<br>・クリックして浄化 (✨20) -> 🪙+60`;
+        }
+    }
+}
+
 // ==========================================
-// 4. 建築・道路舗装ロジック
+// 4. 建築・整地・開拓ロジック
 // ==========================================
 
 function handleTileClick(col, row) {
@@ -507,25 +625,28 @@ function handleTileClick(col, row) {
         return;
     }
     
-    // 建築ツールが選択されている場合
+    // 障害物がある場合は詳細（開拓）パネルを開く
+    if (cell.obstacle) {
+        selectCell(col, row);
+        return;
+    }
+    
+    // 建築ツール選択中の場合
     if (state.selectedTool) {
         if (state.selectedTool.startsWith('road_')) {
-            // 道路の舗装
             layRoad(col, row, state.selectedTool.replace('road_', ''));
         } else {
-            // 建物の配置
             placeBuildingAt(col, row, state.selectedTool);
         }
         return;
     }
     
-    // 通常のクリック：詳細パネル表示
+    // 通常のクリック：詳細表示
     selectCell(col, row);
 }
 
 // セル選択表示
 function selectCell(col, row) {
-    // 以前の選択解除
     if (state.selectedCell) {
         const prevTile = document.getElementById(`tile-${state.selectedCell.col}-${state.selectedCell.row}`);
         if (prevTile) prevTile.classList.remove('selected');
@@ -549,13 +670,52 @@ function showDetailsPanel(cell) {
     const btnUpgrade = document.getElementById('btn-upgrade');
     const btnDemolish = document.getElementById('btn-demolish');
     
+    // 1. 障害物セルの場合
+    if (cell.obstacle) {
+        panel.classList.remove('hidden');
+        btnUpgrade.classList.add('hidden');
+        btnDemolish.classList.remove('hidden');
+        
+        const type = cell.obstacle.type;
+        if (type === 'tree') {
+            title.textContent = "枯れ木 🪵";
+            desc.textContent = "邪魔な枯れ木です。開拓して土地をすっきりさせ、木材を獲得しましょう。";
+            level.textContent = "なし";
+            prod.textContent = "開拓報酬: 🪵+30";
+            btnDemolish.textContent = "開拓する (🪙20)";
+            btnDemolish.className = "btn btn-primary";
+            btnDemolish.onclick = () => clearObstacle(cell.col, cell.row, { gold: 20 }, { wood: 30 });
+        } else if (type === 'rock') {
+            title.textContent = "魔力岩 🪨";
+            desc.textContent = "マナが結晶化した神秘的な岩です。砕くことでマナを回収できます。";
+            level.textContent = "なし";
+            prod.textContent = "開拓報酬: ✨+15";
+            btnDemolish.textContent = "砕く (🪙30)";
+            btnDemolish.className = "btn btn-primary";
+            btnDemolish.onclick = () => clearObstacle(cell.col, cell.row, { gold: 30 }, { mana: 15 });
+        } else if (type === 'ruin') {
+            title.textContent = "古代の廃墟 🏚️";
+            desc.textContent = "古代魔法都市の遺物です。マナを使って浄化すると、埋もれていたゴールドが手に入ります。";
+            level.textContent = "なし";
+            prod.textContent = "浄化報酬: 🪙+60";
+            btnDemolish.textContent = "浄化する (✨20)";
+            btnDemolish.className = "btn btn-primary";
+            btnDemolish.onclick = () => clearObstacle(cell.col, cell.row, { mana: 20 }, { gold: 60 });
+        }
+        return;
+    }
+    
+    // 2. 建物がない場合
     if (!cell.building) {
-        // 建物がない場合は非表示
         panel.classList.add('hidden');
         return;
     }
     
+    // 3. 建物がある場合
     panel.classList.remove('hidden');
+    btnUpgrade.classList.remove('hidden');
+    btnDemolish.className = "btn btn-danger";
+    btnDemolish.textContent = "撤去";
     
     const buildType = cell.building.type;
     const config = BUILDING_TYPES[buildType];
@@ -564,7 +724,6 @@ function showDetailsPanel(cell) {
     desc.textContent = config.description;
     level.textContent = cell.building.level;
     
-    // 生産ステータスの作成
     let prodText = [];
     const multi = cell.building.level * (state.activeEffects.rain > 0 ? 2 : 1);
     if (config.production.gold > 0) prodText.push(`🪙 +${(config.production.gold * multi).toFixed(1)}/s`);
@@ -572,7 +731,6 @@ function showDetailsPanel(cell) {
     if (config.production.mana > 0) prodText.push(`✨ +${(config.production.mana * multi).toFixed(1)}/s`);
     prod.textContent = prodText.length > 0 ? prodText.join(' / ') : 'なし';
     
-    // アップグレードコストの算出
     const upCost = Math.round(config.cost.gold * Math.pow(config.upgradeCostMultiplier, cell.building.level - 1));
     btnUpgrade.textContent = `レベルアップ (🪙${upCost})`;
     btnUpgrade.onclick = () => upgradeBuilding(cell.col, cell.row, upCost);
@@ -580,20 +738,78 @@ function showDetailsPanel(cell) {
     btnDemolish.onclick = () => demolishBuilding(cell.col, cell.row);
 }
 
+// 障害物の開拓実行
+function clearObstacle(col, row, cost, reward) {
+    const cell = state.grid[row][col];
+    if (!cell.obstacle) return;
+    
+    // 資源コストチェック
+    if (cost.gold && state.resources.gold < cost.gold) {
+        showToast("ゴールドが足りません！", "warning");
+        return;
+    }
+    if (cost.mana && state.resources.mana < cost.mana) {
+        showToast("マナが足りません！", "warning");
+        return;
+    }
+    
+    // 消費
+    if (cost.gold) state.resources.gold -= cost.gold;
+    if (cost.mana) state.resources.mana -= cost.mana;
+    
+    // 報酬獲得
+    if (reward.gold) {
+        state.resources.gold += reward.gold;
+        createFloatingText(col, row, `+${reward.gold}🪙`, 'gold');
+    }
+    if (reward.wood) {
+        state.resources.wood += reward.wood;
+        createFloatingText(col, row, `+${reward.wood}🪵`, 'wood');
+    }
+    if (reward.mana) {
+        state.resources.mana += reward.mana;
+        createFloatingText(col, row, `+${reward.mana}✨`, 'mana');
+    }
+    
+    // DOM要素の削除
+    const sprite = document.getElementById(`obstacle-sprite-${col}-${row}`);
+    if (sprite) sprite.remove();
+    
+    cell.obstacle = null;
+    
+    // タイルのツールチップを空地にリセット
+    const tile = document.getElementById(`tile-${col}-${row}`);
+    if (tile) {
+        tile.dataset.tip = `🌿 <b>草原タイル (${col}, ${row})</b><br>建物を建設できる平らな草地です。`;
+    }
+    
+    playBuildSound();
+    showToast("土地を開拓しました！", "success");
+    
+    // 詳細パネルと選択解除
+    document.getElementById('details-panel').classList.add('hidden');
+    if (state.selectedCell) {
+        const t = document.getElementById(`tile-${state.selectedCell.col}-${state.selectedCell.row}`);
+        if (t) t.classList.remove('selected');
+        state.selectedCell = null;
+    }
+    
+    updateHUD();
+}
+
 // 建物を配置する
 function placeBuildingAt(col, row, type, free = false) {
     const cell = state.grid[row][col];
     
-    // すでに建物があるか、道路がある場合は配置不可
-    if (cell.building) {
-        showToast("すでに建物があります！", "warning");
+    if (cell.building || cell.obstacle) {
+        showToast("この場所には建設できません！", "warning");
         return;
     }
     
     const config = BUILDING_TYPES[type];
     if (!config) return;
     
-    // 資源コストチェック
+    // コスト消費
     if (!free) {
         if (state.resources.gold < config.cost.gold || 
             state.resources.wood < config.cost.wood || 
@@ -601,16 +817,13 @@ function placeBuildingAt(col, row, type, free = false) {
             showToast("資源が足りません！", "warning");
             return;
         }
-        // 消費
         state.resources.gold -= config.cost.gold;
         state.resources.wood -= config.cost.wood;
         state.resources.mana -= config.cost.mana;
     }
     
-    // 住民最大枠の加算
     state.resources.popMax += config.popMaxAdd;
     
-    // データ登録
     cell.building = {
         type: type,
         level: 1,
@@ -622,25 +835,26 @@ function placeBuildingAt(col, row, type, free = false) {
     const sprite = document.createElement('div');
     sprite.className = `building-sprite building-${type}`;
     sprite.id = `building-sprite-${col}-${row}`;
-    
-    // 透過処理済みの建物アセットを設定
     sprite.style.backgroundImage = `url('${state.assetsProcessed[type]}')`;
     tileContainer.appendChild(sprite);
+    
+    // タイルのホバーツールチップを建物情報にアップデート
+    const tile = document.getElementById(`tile-${col}-${row}`);
+    if (tile) {
+        tile.dataset.tip = `🏡 <b>${config.name} (Lv.1)</b><br>${config.description}<br>・クリックしてアップグレード/撤去`;
+    }
     
     playBuildSound();
     createFloatingText(col, row, `-${config.cost.gold}🪙`, 'gold');
     
-    // クエストの進捗チェック
     updateQuestProgress('build_houses');
     
-    // もし酒場か兵舎が建てられた場合、冒険者を召喚
+    // 酒場・兵舎配置時の冒険者召喚
     if (type === 'tavern' || type === 'barracks') {
         spawnAdventurer(type === 'tavern' ? 'mage' : 'knight');
     }
     
     updateHUD();
-    
-    // 建築後に選択状態をクリア
     clearSelectedTool();
 }
 
@@ -657,11 +871,15 @@ function upgradeBuilding(col, row, cost) {
     state.resources.gold -= cost;
     cell.building.level += 1;
     
-    // 住民枠の追加加算
     const config = BUILDING_TYPES[cell.building.type];
-    state.resources.popMax += config.popMaxAdd; // レベルアップごとに加算
+    state.resources.popMax += config.popMaxAdd;
     
-    // アニメーション適用
+    // ツールチップアップデート
+    const tile = document.getElementById(`tile-${col}-${row}`);
+    if (tile) {
+        tile.dataset.tip = `🏡 <b>${config.name} (Lv.${cell.building.level})</b><br>${config.description}<br>・クリックしてアップグレード/撤去`;
+    }
+    
     const sprite = document.getElementById(`building-sprite-${col}-${row}`);
     if (sprite) {
         sprite.classList.add('upgraded');
@@ -681,29 +899,30 @@ function demolishBuilding(col, row) {
     if (!cell.building) return;
     
     const config = BUILDING_TYPES[cell.building.type];
-    
-    // 住民最大枠の減算
     state.resources.popMax = Math.max(0, state.resources.popMax - config.popMaxAdd * cell.building.level);
     
-    // DOM削除
     const sprite = document.getElementById(`building-sprite-${col}-${row}`);
     if (sprite) sprite.remove();
     
     cell.building = null;
     
+    // ツールチップリセット
+    const tile = document.getElementById(`tile-${col}-${row}`);
+    if (tile) {
+        tile.dataset.tip = `🌿 <b>草原タイル (${col}, ${row})</b><br>建物を建設できる平らな草地です。`;
+    }
+    
     playBuildSound();
     
-    const panel = document.getElementById('details-panel');
-    panel.classList.add('hidden');
-    
+    document.getElementById('details-panel').classList.add('hidden');
     updateHUD();
 }
 
 // 道路舗装
 function layRoad(col, row, type) {
     const cell = state.grid[row][col];
-    if (cell.building) {
-        showToast("建物がある場所には道路を敷けません", "warning");
+    if (cell.building || cell.obstacle) {
+        showToast("この場所には道路を敷けません", "warning");
         return;
     }
     
@@ -719,12 +938,13 @@ function layRoad(col, row, type) {
         state.resources.gold -= 5;
         cell.tileType = 'dirt';
         tile.style.backgroundImage = `url('${state.assetsProcessed.dirt}')`;
+        tile.dataset.tip = `🧱 <b>レンガ道 (${col}, ${row})</b><br>レンガ舗装された道です。<br>・住民や冒険者の歩行速度がアップします。`;
         playBuildSound();
     } else {
-        // 草地に戻す
         if (cell.tileType === 'grass') return;
         cell.tileType = 'grass';
         tile.style.backgroundImage = `url('${state.assetsProcessed.grass}')`;
+        tile.dataset.tip = `🌿 <b>草原タイル (${col}, ${row})</b><br>建物を建設できる平らな草地です。`;
         playBuildSound();
     }
     
@@ -738,7 +958,7 @@ function clearSelectedTool() {
 }
 
 // ==========================================
-// 5. 資源生産 ＆ HUD更新
+// 5. 資源生産 ＆ HUD・UI更新
 // ==========================================
 
 function gameTick() {
@@ -746,7 +966,6 @@ function gameTick() {
     let woodRate = 0;
     let manaRate = 0;
     
-    // 1. 各建物の自動生産
     const rainActive = state.activeEffects.rain > 0;
     if (rainActive) {
         state.activeEffects.rain = Math.max(0, state.activeEffects.rain - 0.1);
@@ -755,6 +974,9 @@ function gameTick() {
     
     const productionMultiplier = rainActive ? 2.0 : 1.0;
     
+    // 幸福度による生産補正算出 (幸福度100%で1.0倍、120%で1.2倍、70%で0.7倍)
+    const happinessMultiplier = state.resources.happiness / 100.0;
+    
     for (let r = 0; r < GRID_SIZE; r++) {
         for (let c = 0; c < GRID_SIZE; c++) {
             const cell = state.grid[r][c];
@@ -762,11 +984,11 @@ function gameTick() {
                 const config = BUILDING_TYPES[cell.building.type];
                 const mult = cell.building.level * productionMultiplier;
                 
-                // 1秒あたりの生産値を加算 (0.1秒単位のtick)
                 if (config.production.gold > 0) {
-                    const add = (config.production.gold * mult) * 0.1;
+                    // ゴールドのみ幸福度の影響を受ける
+                    const add = (config.production.gold * mult * happinessMultiplier) * 0.1;
                     state.resources.gold += add;
-                    goldRate += config.production.gold * mult;
+                    goldRate += config.production.gold * mult * happinessMultiplier;
                 }
                 if (config.production.wood > 0) {
                     const add = (config.production.wood * mult) * 0.1;
@@ -782,7 +1004,16 @@ function gameTick() {
         }
     }
     
-    // 自然に集まる住人の数（民家の数に応じてゆっくりと市民が訪問）
+    // スライム侵入による幸福度の自然降下
+    const slimeCount = state.characters.filter(c => c.type === 'slime').length;
+    if (slimeCount > 0) {
+        state.resources.happiness = Math.max(50, state.resources.happiness - (slimeCount * 0.05));
+    } else {
+        // スライムがいない場合はゆっくり100%まで自然回復
+        state.resources.happiness = Math.min(100, state.resources.happiness + 0.1);
+    }
+    
+    // 自然な市民訪問
     const targetPop = Math.min(state.resources.popMax, Math.floor(state.resources.popMax));
     if (state.resources.pop < targetPop && Math.random() < 0.05) {
         state.resources.pop++;
@@ -791,18 +1022,14 @@ function gameTick() {
         state.resources.pop = state.resources.popMax;
     }
     
-    // キャラクターの移動・AI制御の実行
     updateCharacters();
     
-    // クエスト自動チェック
     updateQuestProgress('gather_mana');
     updateQuestProgress('gold_target');
     
-    // HUD数値表示更新
     updateHUD(goldRate, woodRate, manaRate);
 }
 
-// HUDのUI表示を書き換え
 function updateHUD(goldRate = 0, woodRate = 0, manaRate = 0) {
     document.querySelector('#hud-gold .hud-value').textContent = Math.floor(state.resources.gold);
     document.getElementById('gold-change').textContent = `+${goldRate.toFixed(1)}/s`;
@@ -814,13 +1041,12 @@ function updateHUD(goldRate = 0, woodRate = 0, manaRate = 0) {
     document.getElementById('mana-change').textContent = `+${manaRate.toFixed(1)}/s`;
     
     document.querySelector('#hud-pop .hud-value').textContent = `${state.resources.pop} / ${state.resources.popMax}`;
+    document.querySelector('#hud-happy .hud-value').textContent = `${Math.floor(state.resources.happiness)}%`;
     
-    // ボタン類の購入可能制限をリアルタイム更新
     updateShopInteraction();
     updateSpellInteraction();
 }
 
-// 建築ショップのボタン活性状態を更新
 function updateShopInteraction() {
     document.querySelectorAll('.shop-item').forEach(btn => {
         const bType = btn.dataset.build;
@@ -835,7 +1061,6 @@ function updateShopInteraction() {
     });
 }
 
-// 魔法ボタンの活性状態を更新
 function updateSpellInteraction() {
     document.querySelectorAll('.spell-btn').forEach(btn => {
         const sType = btn.dataset.spell;
@@ -849,7 +1074,6 @@ function updateSpellInteraction() {
     });
 }
 
-// 画面上に通知トーストを出す
 function showToast(msg, type = "info") {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -857,13 +1081,11 @@ function showToast(msg, type = "info") {
     toast.textContent = msg;
     container.appendChild(toast);
     
-    // アニメーション後に自動削除
     setTimeout(() => {
         toast.remove();
     }, 4000);
 }
 
-// マップ上に浮遊するテキストエフェクト (+10, Dmgなど) を生成
 function createFloatingText(col, row, text, type = '') {
     const board = document.getElementById('game-board');
     const { x, y } = getIsoCoords(col, row);
@@ -871,14 +1093,10 @@ function createFloatingText(col, row, text, type = '') {
     const el = document.createElement('div');
     el.className = `floating-text ${type}`;
     el.textContent = text;
-    
-    // セルの中心付近に配置
     el.style.left = `${x + BASE_TILE_WIDTH / 2}px`;
     el.style.top = `${y + BASE_TILE_HEIGHT / 4}px`;
     
     board.appendChild(el);
-    
-    // アニメーション終了後に削除
     setTimeout(() => el.remove(), 1200);
 }
 
@@ -892,20 +1110,17 @@ function selectSpell(spellType) {
     const config = SPELLS[spellType];
     if (!config) return;
     
-    // 即時発動スペルの場合
     if (config.instant) {
         castInstantSpell(spellType);
         return;
     }
     
-    // 対象指定スペルの場合、カーソルを準備
     state.selectedTool = `spell_${spellType}`;
     document.querySelectorAll('.shop-item, .shop-item-road, .spell-btn').forEach(btn => btn.classList.remove('selected', 'active'));
     document.getElementById(`spell-${spellType}`).classList.add('active');
     showToast("対象のタイルを選択してください", "info");
 }
 
-// 即時発動魔法の実行
 function castInstantSpell(spellType) {
     const config = SPELLS[spellType];
     
@@ -914,7 +1129,6 @@ function castInstantSpell(spellType) {
         return;
     }
     
-    // コスト消費
     state.resources.gold -= (config.cost.gold || 0);
     state.resources.mana -= (config.cost.mana || 0);
     
@@ -932,7 +1146,6 @@ function castInstantSpell(spellType) {
     updateHUD();
 }
 
-// 対象選択型魔法の実行
 function castTargetSpell(col, row, spellType) {
     const config = SPELLS[spellType];
     
@@ -942,16 +1155,18 @@ function castTargetSpell(col, row, spellType) {
         return;
     }
     
-    // コスト消費
-    state.resources.gold -= (config.cost.gold || 0);
-    state.resources.mana -= (config.cost.mana || 0);
-    
-    playMagicCastSound();
-    
     if (spellType === 'cleanse') {
-        // スライムを検索
+        const cell = state.grid[row][col];
+        
+        // 1. スライムを検索
         const slimeIdx = state.characters.findIndex(c => c.type === 'slime' && Math.round(c.x) === col && Math.round(c.y) === row);
+        
         if (slimeIdx !== -1) {
+            // スライムの消滅
+            state.resources.gold -= (config.cost.gold || 0);
+            state.resources.mana -= (config.cost.mana || 0);
+            playMagicCastSound();
+            
             const slime = state.characters[slimeIdx];
             const dom = document.getElementById(`char-${slime.id}`);
             if (dom) dom.remove();
@@ -963,8 +1178,27 @@ function castTargetSpell(col, row, spellType) {
             
             state.stats.slimesKilled++;
             updateQuestProgress('kill_slimes');
+        } 
+        // 2. 障害物を検索
+        else if (cell.obstacle) {
+            state.resources.gold -= (config.cost.gold || 0);
+            state.resources.mana -= (config.cost.mana || 0);
+            playMagicCastSound();
+            
+            const sprite = document.getElementById(`obstacle-sprite-${col}-${row}`);
+            if (sprite) sprite.remove();
+            cell.obstacle = null;
+            
+            const tile = document.getElementById(`tile-${col}-${row}`);
+            if (tile) {
+                tile.dataset.tip = `🌿 <b>草原タイル (${col}, ${row})</b><br>建物を建設できる平らな草地です。`;
+            }
+            
+            playBuildSound();
+            createFloatingText(col, row, "浄化！☀️", "mana");
+            showToast("浄化の光で障害物を消滅させました！", "success");
         } else {
-            showToast("選択したセルにはスライムがいません", "warning");
+            showToast("対象のセルにスライムや障害物がありません", "warning");
         }
     }
     
@@ -972,7 +1206,6 @@ function castTargetSpell(col, row, spellType) {
     updateHUD();
 }
 
-// 成長の雨（持続魔法）の開始
 function startRainSpell() {
     const config = SPELLS.rain;
     if (state.resources.mana < config.cost.mana) {
@@ -990,7 +1223,6 @@ function startRainSpell() {
     updateHUD();
 }
 
-// アクティブ魔法UIの更新
 function updateActiveEffectsUI() {
     const container = document.getElementById('active-effects');
     container.innerHTML = '';
@@ -1007,11 +1239,9 @@ function updateActiveEffectsUI() {
 // 7. キャラクター（冒険者・スライム・市民）AI
 // ==========================================
 
-// 冒険者の召喚
 function spawnAdventurer(profession) {
-    // 男女をランダムで決定
     const gender = Math.random() < 0.5 ? 'boy' : 'girl';
-    const subType = `${profession}_${gender}`; // 'knight_boy', 'knight_girl', 'mage_boy', 'mage_girl'
+    const subType = `${profession}_${gender}`;
     
     const id = state.nextCharId++;
     const adventurer = {
@@ -1020,7 +1250,7 @@ function spawnAdventurer(profession) {
         subType: subType,
         profession: profession,
         gender: gender,
-        x: 3, // 酒場や兵舎ではなく中心付近から出現
+        x: 3,
         y: 3,
         targetX: 3,
         targetY: 3,
@@ -1037,9 +1267,7 @@ function spawnAdventurer(profession) {
     showToast(`新米の${profession === 'knight' ? '騎士' : '魔導士'}(${gender === 'boy' ? '男の子' : '女の子'})が街に到着しました！`, "success");
 }
 
-// スライムの出現
 function spawnSlime() {
-    // 境界の端っこから出現
     const edgeCoords = [
         {x: 0, y: Math.floor(Math.random() * GRID_SIZE)},
         {x: GRID_SIZE - 1, y: Math.floor(Math.random() * GRID_SIZE)},
@@ -1068,10 +1296,8 @@ function spawnSlime() {
     showToast("かわいいスライムが街の境界線から入ってきました！", "warning");
 }
 
-// 市民（一般市民）の出現
 function spawnCitizen() {
     const gender = Math.random() < 0.5 ? 'boy' : 'girl';
-    // 住民はMageかKnightのちびグラフィックを流用
     const subType = gender === 'boy' ? 'knight_boy' : 'mage_girl';
     
     const id = state.nextCharId++;
@@ -1091,14 +1317,12 @@ function spawnCitizen() {
     createCharacterDOM(citizen);
 }
 
-// キャラクターDOM要素の作成
 function createCharacterDOM(char) {
     const board = document.getElementById('game-board');
     const el = document.createElement('div');
     el.className = `character-sprite ${char.type === 'slime' ? 'slime active-slime' : char.subType.replace('_', '-')}`;
     el.id = `char-${char.id}`;
     
-    // スタイル画像の設定 (透過処理済みのものを使用)
     let assetKey = char.subType;
     if (char.type === 'slime') assetKey = 'slime';
     else if (char.subType.includes('knight_boy')) assetKey = 'knight_boy';
@@ -1108,24 +1332,28 @@ function createCharacterDOM(char) {
     
     el.style.backgroundImage = `url('${state.assetsProcessed[assetKey]}')`;
     
-    // 初期配置
     const pix = getIsoCoords(char.x, char.y);
     el.style.left = `${pix.x + BASE_TILE_WIDTH / 2}px`;
     el.style.top = `${pix.y + BASE_TILE_HEIGHT / 3}px`;
-    el.style.zIndex = Math.floor(char.x + char.y) + 2; // 建物などと同レイヤー
+    el.style.zIndex = Math.floor(char.x + char.y) + 2;
+    
+    // キャラクターのホバーツールチップ設定
+    if (char.type === 'adventurer') {
+        el.dataset.tip = `⚔️ <b>冒険者 (${char.profession === 'knight' ? '騎士' : '魔導士'})</b><br>Lv.${char.level}<br>・自動的にスライムを探して退治します。`;
+    } else if (char.type === 'slime') {
+        el.dataset.tip = `💧 <b>スライム (魔物)</b><br>・放置すると街の幸福度が低下します。<br>・倒すとゴールドを獲得できます。`;
+    } else {
+        el.dataset.tip = `👥 <b>街の住民</b><br>街の中を楽しそうに散歩しています。`;
+    }
     
     board.appendChild(el);
 }
 
-// キャラクター全体のAI処理と移動
 function updateCharacters() {
-    const listToRemove = [];
-    
     state.characters.forEach(char => {
         const dom = document.getElementById(`char-${char.id}`);
         if (!dom) return;
         
-        // --- 1. 行動決定AI ---
         if (char.type === 'adventurer') {
             adventurerAI(char);
         } else if (char.type === 'slime') {
@@ -1134,36 +1362,36 @@ function updateCharacters() {
             citizenAI(char);
         }
         
-        // --- 2. 移動処理 ---
-        // 目標座標と現在位置の差分
         const dx = char.targetX - char.x;
         const dy = char.targetY - char.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
         
+        // 移動速度に道路（レンガ道）の補正を適用
+        let speedMod = 1.0;
+        const currentTileR = Math.min(GRID_SIZE - 1, Math.max(0, Math.round(char.y)));
+        const currentTileC = Math.min(GRID_SIZE - 1, Math.max(0, Math.round(char.x)));
+        if (state.grid[currentTileR][currentTileC].tileType === 'dirt') {
+            speedMod = 1.45; // 道路の上では1.45倍速く移動
+        }
+        
         if (dist > 0.05) {
-            // スピードに合わせて目標へ進む
-            const step = Math.min(char.speed, dist);
+            const step = Math.min(char.speed * speedMod || 0.03, dist);
             char.x += (dx / dist) * step;
             char.y += (dy / dist) * step;
             
-            // 向き転換 (左右反転表示)
             if (dx > 0) {
                 dom.style.transform = "translate(-50%, -50%) scaleX(1)";
             } else if (dx < 0) {
                 dom.style.transform = "translate(-50%, -50%) scaleX(-1)";
             }
         } else {
-            // 到着した際の処理
             char.x = char.targetX;
             char.y = char.targetY;
-            
             if (char.state === 'walk_to_target' || char.state === 'wander') {
-                // 新しいランダムな目標を設定
                 setRandomTarget(char);
             }
         }
         
-        // --- 3. DOM位置の同期 ---
         const pix = getIsoCoords(char.x, char.y);
         dom.style.left = `${pix.x + BASE_TILE_WIDTH / 2}px`;
         dom.style.top = `${pix.y + BASE_TILE_HEIGHT / 3}px`;
@@ -1171,12 +1399,10 @@ function updateCharacters() {
     });
 }
 
-// ランダムな移動先セルをセットする
 function setRandomTarget(char) {
     let randX = char.x + (Math.random() * 4 - 2);
     let randY = char.y + (Math.random() * 4 - 2);
     
-    // グリッド範囲内かつ道路が優先的に選ばれるよう補正
     randX = Math.max(0, Math.min(GRID_SIZE - 1, randX));
     randY = Math.max(0, Math.min(GRID_SIZE - 1, randY));
     
@@ -1185,23 +1411,11 @@ function setRandomTarget(char) {
     char.state = 'wander';
 }
 
-// 市民AI: ただのんびり歩き回る
-function citizenAI(char) {
-    // 特になし
-}
+function citizenAI(char) {}
+function slimeAI(char) {}
 
-// スライムAI: のんびり歩き回り、たまに近くの生産物を吸い取る（幸福度低下）
-function slimeAI(char) {
-    if (Math.random() < 0.01) {
-        state.resources.happiness = Math.max(50, state.resources.happiness - 1);
-    }
-}
-
-// 冒険者AI: スライムを探し、見つけたら攻撃する
 function adventurerAI(char) {
-    // 1. すでに索敵ターゲットがいる場合、戦闘か移動
     if (char.targetEnemy) {
-        // 敵が存在するか生存チェック
         const enemy = state.characters.find(c => c.id === char.targetEnemy.id);
         if (!enemy) {
             char.targetEnemy = null;
@@ -1209,24 +1423,20 @@ function adventurerAI(char) {
             return;
         }
         
-        // 敵との距離計算
         const dx = enemy.x - char.x;
         const dy = enemy.y - char.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
         
         if (dist <= 0.8) {
-            // 戦闘射程内
             char.targetX = char.x;
             char.targetY = char.y;
             char.state = 'combat';
             
-            // クールダウン攻撃
             if (!char.lastAttackTime || Date.now() - char.lastAttackTime > 1000) {
                 char.lastAttackTime = Date.now();
                 attackEnemy(char, enemy);
             }
         } else {
-            // 敵のいる場所を追いかける
             char.targetX = enemy.x;
             char.targetY = enemy.y;
             char.state = 'walk_to_target';
@@ -1234,7 +1444,6 @@ function adventurerAI(char) {
         return;
     }
     
-    // 2. 近くのスライムを索敵 (半径4セル以内)
     const slimes = state.characters.filter(c => c.type === 'slime');
     let closestSlime = null;
     let minDist = 999;
@@ -1256,16 +1465,12 @@ function adventurerAI(char) {
     }
 }
 
-// 攻撃アクション
 function attackEnemy(attacker, defender) {
-    // ダメージ計算
     const dmg = Math.round(attacker.atk * (0.8 + Math.random() * 0.4));
     defender.hp -= dmg;
     
-    // ダメージポップアップ
     createFloatingText(defender.x, defender.y, `-${dmg}`, 'damage');
     
-    // 攻撃演出（DOMを少しプルプル動かす）
     const dom = document.getElementById(`char-${attacker.id}`);
     if (dom) {
         dom.style.transform += " translateY(-5px)";
@@ -1274,32 +1479,27 @@ function attackEnemy(attacker, defender) {
         }, 150);
     }
     
-    // 死亡チェック
     if (defender.hp <= 0) {
         const index = state.characters.findIndex(c => c.id === defender.id);
         if (index !== -1) {
-            // 画面上から削除
             const defDom = document.getElementById(`char-${defender.id}`);
             if (defDom) defDom.remove();
             state.characters.splice(index, 1);
             
             playSlimeDeathSound();
             
-            // 報酬獲得
             const goldReward = 15;
             state.resources.gold += goldReward;
             createFloatingText(defender.x, defender.y, `+${goldReward}🪙`, 'gold');
             
-            // 経験値加算
             attacker.exp += 40;
             createFloatingText(attacker.x, attacker.y, `+40 EXP`, 'exp');
             
-            // レベルアップチェック
             if (attacker.exp >= 100) {
                 attacker.level++;
                 attacker.exp -= 100;
                 attacker.atk += 2;
-                playSynthSound([523.25, 659.25, 783.99, 1046.50], 0.6, 'sine', 0.12); // ファンファーレ
+                playSynthSound([523.25, 659.25, 783.99, 1046.50], 0.6, 'sine', 0.12);
                 createFloatingText(attacker.x, attacker.y, `LvUP! ✨`, 'mana');
                 createEmoteBubble(attacker.id, '👑');
                 showToast(`冒険者がレベル${attacker.level}に上がりました！`, "success");
@@ -1313,12 +1513,10 @@ function attackEnemy(attacker, defender) {
     }
 }
 
-// キャラクターの上に吹き出し（絵文字）を一時的に出す
 function createEmoteBubble(charId, emoji) {
     const dom = document.getElementById(`char-${charId}`);
     if (!dom) return;
     
-    // すでに吹き出しがあれば削除
     const prev = dom.querySelector('.emote-bubble');
     if (prev) prev.remove();
     
@@ -1338,8 +1536,6 @@ function createEmoteBubble(charId, emoji) {
     bubble.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
     
     dom.appendChild(bubble);
-    
-    // 2.5秒後に自動消滅
     setTimeout(() => bubble.remove(), 2500);
 }
 
@@ -1347,7 +1543,6 @@ function createEmoteBubble(charId, emoji) {
 // 8. 政治・勢力・クエストシステム
 // ==========================================
 
-// クエスト定義リスト
 const QUEST_TEMPLATES = {
     royal: [
         { desc: '国庫への貢献：ゴールドを300以上蓄えよう', type: 'gold_target', target: 300, repReward: 15, goldReward: 0, woodReward: 50 },
@@ -1363,15 +1558,11 @@ const QUEST_TEMPLATES = {
     ]
 };
 
-// クエストをランダム生成して割り当て
 function generateNewQuest(factionKey) {
     const list = QUEST_TEMPLATES[factionKey];
     const quest = {...list[Math.floor(Math.random() * list.length)]};
-    
-    // クエスト進行度リセット
     quest.current = 0;
     
-    // 蓄積値タイプは現在の資源量または統計値を設定
     if (quest.type === 'kill_slimes') {
         quest.startVal = state.stats.slimesKilled;
     }
@@ -1380,7 +1571,6 @@ function generateNewQuest(factionKey) {
     renderFactionQuestUI(factionKey);
 }
 
-// 勢力UIの表示更新
 function renderFactionQuestUI(factionKey) {
     const faction = state.factions[factionKey];
     const quest = faction.quest;
@@ -1388,19 +1578,16 @@ function renderFactionQuestUI(factionKey) {
     const panel = document.getElementById(`faction-${factionKey}`);
     if (!panel) return;
     
-    // 友好度バーとテキストの更新
     const repBar = panel.querySelector('.rep-bar');
     const repText = panel.querySelector('.rep-text');
     repBar.style.width = `${Math.min(100, faction.rep)}%`;
     repText.textContent = `友好度: ${getRepName(faction.rep)} (${faction.rep})`;
     
-    // クエストエリアの更新
     const qDesc = document.getElementById(`quest-${factionKey}`).querySelector('.quest-desc');
     const qBtn = document.getElementById(`btn-quest-${factionKey}`);
     
     if (quest) {
         qDesc.textContent = `${quest.desc} (${quest.current} / ${quest.target})`;
-        // 条件達成ならボタン活性化
         const isComplete = quest.current >= quest.target;
         qBtn.disabled = !isComplete;
         qBtn.onclick = () => completeQuest(factionKey);
@@ -1410,16 +1597,14 @@ function renderFactionQuestUI(factionKey) {
     }
 }
 
-// 友好度のランク名取得
 function getRepName(rep) {
-    if (rep >= 90) return '熱狂的支持 (同盟)';
-    if (rep >= 75) return 'とても友好';
-    if (rep >= 60) return '好意的';
+    if (rep >= 90) return '同盟結成';
+    if (rep >= 75) return '非常に友好';
+    if (rep >= 60) return '好意';
     if (rep >= 40) return '中立';
-    return '冷ややか';
+    return '冷淡';
 }
 
-// 各種アクション時のクエスト進行度チェック
 function updateQuestProgress(actionType) {
     const factionsKeys = Object.keys(state.factions);
     
@@ -1439,7 +1624,6 @@ function updateQuestProgress(actionType) {
             quest.current = state.stats.slimesKilled - quest.startVal;
             changed = true;
         } else if (quest.type === 'build_houses' && actionType === 'build_houses') {
-            // 全グリッドを走査して指定建物の数を集計
             let count = 0;
             for (let r = 0; r < GRID_SIZE; r++) {
                 for (let c = 0; c < GRID_SIZE; c++) {
@@ -1457,74 +1641,64 @@ function updateQuestProgress(actionType) {
     });
 }
 
-// クエスト完了処理
 function completeQuest(factionKey) {
     const faction = state.factions[factionKey];
     const quest = faction.quest;
     if (!quest || quest.current < quest.target) return;
     
-    // 1. 豪華なクリアチャイムを再生 (クリアなFMベル和音)
     playQuestClearSound();
     
-    // 2. 友好度アップ
     faction.rep += quest.repReward;
     
-    // 3. 資源報酬
     if (quest.goldReward > 0) state.resources.gold += quest.goldReward;
     if (quest.woodReward > 0) state.resources.wood += quest.woodReward;
     
-    showToast(`${faction.name}のクエスト完了！ 友好度+${quest.repReward}、報酬を獲得しました！`, "success");
-    
-    // 特典チェック
+    showToast(`${faction.name}のクエスト達成！友好度+${quest.repReward}！`, "success");
     checkFactionBonuses(factionKey);
-    
-    // 新しいクエスト発行
     generateNewQuest(factionKey);
     updateHUD();
 }
 
-// 勢力ごとの友好度ボーナスチェック
 function checkFactionBonuses(factionKey) {
     const faction = state.factions[factionKey];
     if (faction.rep >= 80 && !faction.bonusUnlocked) {
         faction.bonusUnlocked = true;
         
         if (factionKey === 'royal') {
-            showToast("👑 王宮の強力な支援がアンロックされました！ゴールドの税収効率が+30%上昇しました。", "success");
-            // 税金ボーナス加算
+            showToast("👑 王宮のボーナスアンロック！民家のゴールド回収が+30%上昇しました。", "success");
             BUILDING_TYPES.house.production.gold *= 1.30;
             BUILDING_TYPES.tavern.production.gold *= 1.30;
         } else if (factionKey === 'guild') {
-            showToast("⚔️ 冒険者ギルドとの同盟締結！より強い「エリート魔導士」が追加召喚されます！", "success");
+            showToast("⚔️ 冒険者ギルドのボーナスアンロック！精鋭「魔導士」が追加召喚されました！", "success");
             spawnAdventurer('mage');
         } else if (factionKey === 'archive') {
-            showToast("🔮 大魔導書院の最高秘術を伝授！スペル「成長の雨」のコストがマナ10に半減しました！", "success");
+            showToast("🔮 大魔導書院のボーナスアンロック！スペル「成長の雨」のコストがマナ10に半減しました！", "success");
             SPELLS.rain.cost.mana = 10;
             document.getElementById('spell-rain').querySelector('.spell-cost').textContent = "✨10";
+            // ツールチップも更新
+            document.getElementById('spell-rain').dataset.tip = `🌧️ <b>成長の雨 (消費マナ: 10)</b><br>40秒間、全施設の資源生産速度が <b>2倍</b> になります。`;
         }
     }
 }
 
 // ==========================================
-// 9. ビューポート操作 (ドラッグ＆ズーム)
+// 9. ビューポート操作 (ドラッグ＆改良版スクロールパン・ボタンズーム)
 // ==========================================
 
 function initViewportControls() {
     const viewport = document.getElementById('viewport');
     const board = document.getElementById('game-board');
     
-    // 初期位置設定 (中央に配置)
+    // 初期位置 (中央寄せ)
     const viewWidth = viewport.clientWidth;
     const viewHeight = viewport.clientHeight;
     state.viewport.x = (viewWidth - 1200) / 2;
     state.viewport.y = 80;
     updateViewportTransform();
     
-    // マウスドラッグ移動
+    // ドラッグ移動 (パン)
     viewport.addEventListener('mousedown', (e) => {
-        // ショップやUIの上でのドラッグを弾く
-        if (e.target.closest('#hud, #spell-book, #faction-panel, #shop, #details-panel, .btn')) return;
-        
+        if (e.target.closest('#hud, #spell-book, #faction-panel, #shop, #details-panel, #zoom-controls, #help-modal, .btn, .btn-toggle-panel')) return;
         state.viewport.isDragging = true;
         state.viewport.startX = e.clientX - state.viewport.x;
         state.viewport.startY = e.clientY - state.viewport.y;
@@ -1541,18 +1715,48 @@ function initViewportControls() {
         state.viewport.isDragging = false;
     });
     
-    // マウスホイールでのズーム
+    // 通常スクロールは移動（パン）、Ctrl+スクロールは拡大縮小（ズーム）
     viewport.addEventListener('wheel', (e) => {
         e.preventDefault();
         
-        // 拡大・縮小率
-        const zoomStep = 0.05;
-        if (e.deltaY < 0) {
-            state.viewport.scale = Math.min(1.5, state.viewport.scale + zoomStep);
+        if (e.ctrlKey) {
+            // ズーム
+            const zoomStep = 0.05;
+            if (e.deltaY < 0) {
+                state.viewport.scale = Math.min(1.5, state.viewport.scale + zoomStep);
+            } else {
+                state.viewport.scale = Math.max(0.6, state.viewport.scale - zoomStep);
+            }
         } else {
-            state.viewport.scale = Math.max(0.6, state.viewport.scale - zoomStep);
+            // スクロール移動 (トラックパッドやホイールで直感的にスクロール可能)
+            state.viewport.x -= e.deltaX;
+            state.viewport.y -= e.deltaY;
         }
         updateViewportTransform();
+    });
+    
+    // ズームボタンの設定
+    document.getElementById('btn-zoom-in').addEventListener('click', () => {
+        playClickSound();
+        state.viewport.scale = Math.min(1.5, state.viewport.scale + 0.1);
+        updateViewportTransform();
+    });
+    
+    document.getElementById('btn-zoom-out').addEventListener('click', () => {
+        playClickSound();
+        state.viewport.scale = Math.max(0.6, state.viewport.scale - 0.1);
+        updateViewportTransform();
+    });
+    
+    document.getElementById('btn-zoom-reset').addEventListener('click', () => {
+        playClickSound();
+        const vW = viewport.clientWidth;
+        const vH = viewport.clientHeight;
+        state.viewport.x = (vW - 1200) / 2;
+        state.viewport.y = 80;
+        state.viewport.scale = 1.0;
+        updateViewportTransform();
+        showToast("マップ位置を中央に戻しました", "info");
     });
 }
 
@@ -1562,28 +1766,115 @@ function updateViewportTransform() {
 }
 
 // ==========================================
-// 10. アプリケーション開始・イベントハンドリング
+// 10. 動的ツールチップ & UI開閉システム
+// ==========================================
+
+function initTooltip() {
+    const tooltip = document.getElementById('tooltip');
+    
+    // マウスホバーでツールチップ表示
+    document.addEventListener('mouseover', (e) => {
+        const target = e.target.closest('[data-tip]');
+        if (target) {
+            tooltip.innerHTML = target.getAttribute('data-tip');
+            tooltip.classList.remove('hidden');
+            tooltip.style.opacity = 1;
+        }
+    });
+    
+    // マウス移動で位置追従
+    document.addEventListener('mousemove', (e) => {
+        if (!tooltip.classList.contains('hidden')) {
+            let x = e.clientX + 15;
+            let y = e.clientY + 15;
+            
+            // 画面外はみ出し防止
+            const w = tooltip.offsetWidth;
+            const h = tooltip.offsetHeight;
+            if (x + w > window.innerWidth) {
+                x = e.clientX - w - 15;
+            }
+            if (y + h > window.innerHeight) {
+                y = e.clientY - h - 15;
+            }
+            
+            tooltip.style.left = `${x}px`;
+            tooltip.style.top = `${y}px`;
+        }
+    });
+    
+    // マウス離脱で非表示
+    document.addEventListener('mouseout', (e) => {
+        const target = e.target.closest('[data-tip]');
+        if (target) {
+            tooltip.classList.add('hidden');
+            tooltip.style.opacity = 0;
+        }
+    });
+}
+
+// パネル開閉コントロールの初期化
+function initPanelCollapsible() {
+    const spellPanel = document.getElementById('spell-book');
+    const toggleSpellBtn = document.getElementById('btn-toggle-spell');
+    
+    toggleSpellBtn.addEventListener('click', () => {
+        playClickSound();
+        const isCollapsed = spellPanel.classList.toggle('collapsed');
+        toggleSpellBtn.textContent = isCollapsed ? '▶' : '◀';
+    });
+    
+    const factionPanel = document.getElementById('faction-panel');
+    const toggleFactionBtn = document.getElementById('btn-toggle-faction');
+    
+    toggleFactionBtn.addEventListener('click', () => {
+        playClickSound();
+        const isCollapsed = factionPanel.classList.toggle('collapsed');
+        toggleFactionBtn.textContent = isCollapsed ? '◀' : '▶';
+    });
+}
+
+// ==========================================
+// 11. アプリケーション開始・イベントハンドリング
 // ==========================================
 
 window.addEventListener('DOMContentLoaded', () => {
-    // 1. 画像プレロードと白背景の自動透過処理
     preloadAndProcessAssets();
+    initTooltip();
+    initPanelCollapsible();
     
-    // 2. スタートボタン設定
+    // スタートボタン
     document.getElementById('btn-start').addEventListener('click', () => {
         playClickSound();
-        initAudio(); // 音声コンテキスト起動
+        initAudio();
         
-        // UI切替
         document.getElementById('start-screen').classList.add('hidden');
         document.getElementById('game-container').classList.remove('hidden');
         
-        // 初期化実行
         initViewportControls();
         initGame();
+        
+        // 初期開始時に自動でヘルプモーダルを開く
+        document.getElementById('help-modal').classList.remove('hidden');
     });
     
-    // 3. ショップカテゴリタブ切り替え
+    // ヘルプモーダルのイベント
+    document.getElementById('btn-help').addEventListener('click', () => {
+        playClickSound();
+        document.getElementById('help-modal').classList.remove('hidden');
+    });
+    
+    document.getElementById('btn-close-help').addEventListener('click', () => {
+        playClickSound();
+        document.getElementById('help-modal').classList.add('hidden');
+    });
+    
+    document.getElementById('btn-help-ok').addEventListener('click', () => {
+        playClickSound();
+        document.getElementById('help-modal').classList.add('hidden');
+    });
+    
+    // ショップカテゴリタブ
     document.querySelectorAll('.shop-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             playClickSound();
@@ -1596,7 +1887,7 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // 4. 建築アイテム選択
+    // 建築アイテム
     document.querySelectorAll('.shop-item').forEach(item => {
         item.addEventListener('click', () => {
             playClickSound();
@@ -1611,7 +1902,7 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // 5. 道路ツール選択
+    // 道路ツール
     document.querySelectorAll('.shop-item-road').forEach(item => {
         item.addEventListener('click', () => {
             playClickSound();
@@ -1621,21 +1912,21 @@ window.addEventListener('DOMContentLoaded', () => {
             if (!isSelected) {
                 item.classList.add('selected');
                 state.selectedTool = `road_${item.dataset.road}`;
-                showToast("マップをクリック/ドラッグして道路を敷いてください", "info");
+                showToast("マップをクリックして道路を敷いてください", "info");
             }
         });
     });
     
-    // 6. 魔法スペルボタン選択
+    // 魔法スペルボタン
     document.getElementById('spell-rain').addEventListener('click', startRainSpell);
     document.getElementById('spell-surge').addEventListener('click', () => selectSpell('surge'));
     document.getElementById('spell-slime').addEventListener('click', () => selectSpell('slime'));
     document.getElementById('spell-cleanse').addEventListener('click', () => selectSpell('cleanse'));
     
-    // 7. サウンドトグル設定
+    // サウンドトグル
     document.getElementById('btn-sound').addEventListener('click', toggleSound);
     
-    // 8. 詳細パネル閉じる
+    // 詳細パネル閉じる
     document.getElementById('btn-close-details').addEventListener('click', () => {
         playClickSound();
         document.getElementById('details-panel').classList.add('hidden');
