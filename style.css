@@ -336,8 +336,98 @@ body {
     background-position: center bottom;
     pointer-events: none;
     z-index: 10;
-    transform: translate(-50%, -50%) scaleX(var(--scale-x, 1));
+    transform: translate(-50%, -50%) scale(var(--scale-x, 1), var(--scale-y, 1)) skew(var(--skew-x, 0deg), var(--skew-y, 0deg));
     transition: left 0.1s linear, top 0.1s linear;
+}
+
+/* Directional configurations for dynamic 4-direction simulation */
+.character-sprite.dir-down {
+    --scale-x: 1;
+    --scale-y: 1;
+    --skew-x: 0deg;
+    --skew-y: 0deg;
+}
+
+.character-sprite.dir-up {
+    --scale-x: 1;
+    --scale-y: 0.95;
+    --skew-x: 0deg;
+    --skew-y: 0deg;
+    filter: brightness(0.85) contrast(1.05); /* Slight shadow overlay for back-facing look */
+}
+
+.character-sprite.dir-left {
+    --scale-x: -0.75; /* Squeezed and flipped for side profile */
+    --scale-y: 1;
+    --skew-x: 0deg;
+    --skew-y: -3deg;
+}
+
+.character-sprite.dir-right {
+    --scale-x: 0.75; /* Squeezed for side profile */
+    --scale-y: 1;
+    --skew-x: 0deg;
+    --skew-y: 3deg;
+}
+
+/* Back-hair and hood overlays to hide the face when character is facing away */
+.character-sprite.dir-up::after {
+    content: '';
+    position: absolute;
+    z-index: 12;
+}
+
+.character-sprite.knight_boy.dir-up::after,
+.character-sprite.knight-boy.dir-up::after {
+    top: 5px;
+    left: 11px;
+    width: 23px;
+    height: 18px;
+    background-color: #5c4033; /* Brown hair matching Knight Boy */
+    border-radius: 50% 50% 30% 30%;
+    box-shadow: inset 0 -3px 0 #3a271d, 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.character-sprite.knight_girl.dir-up::after,
+.character-sprite.knight-girl.dir-up::after {
+    top: 5px;
+    left: 10px;
+    width: 25px;
+    height: 22px;
+    background-color: #ffd32a; /* Blonde hair matching Knight Girl */
+    border-radius: 50% 50% 40% 40%;
+    box-shadow: inset 0 -3px 0 #cc9a06, 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.character-sprite.mage_boy.dir-up::after,
+.character-sprite.mage-boy.dir-up::after {
+    top: 2px;
+    left: 8px;
+    width: 29px;
+    height: 25px;
+    background-color: #8854d0; /* Purple hood matching Mage Boy */
+    border-radius: 50% 50% 20% 20%;
+    box-shadow: inset 0 -4px 0 #5758bb, 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.character-sprite.mage_girl.dir-up::after,
+.character-sprite.mage-girl.dir-up::after {
+    top: 2px;
+    left: 8px;
+    width: 29px;
+    height: 25px;
+    background-color: #eb3b5a; /* Red hood matching Mage Girl */
+    border-radius: 50% 50% 20% 20%;
+    box-shadow: inset 0 -4px 0 #fc5c65, 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* Slimes are symmetrical but we give them a subtle shadow/flattening when facing away */
+.character-sprite.slime.dir-up {
+    --scale-x: 1;
+    --scale-y: 0.9;
+    --skew-x: 0deg;
+    --skew-y: 0deg;
+    filter: brightness(0.9) saturate(1.1);
 }
 
 .character-sprite.knight-boy { background-image: url('assets/character_knight_boy.png'); }
@@ -1112,10 +1202,10 @@ body {
 /* --- Walk Waddle Animation --- */
 @keyframes walkWaddle {
     0%, 100% { 
-        transform: translate(-50%, -50%) scaleX(var(--scale-x, 1)) skewX(8deg) rotate(-3deg) translateY(0); 
+        transform: translate(-50%, -50%) scale(var(--scale-x, 1), var(--scale-y, 1)) skew(var(--skew-x, 0deg), var(--skew-y, 0deg)) rotate(-3deg) translateY(0); 
     }
     50% { 
-        transform: translate(-50%, -50%) scaleX(var(--scale-x, 1)) skewX(8deg) rotate(3deg) translateY(-3px); 
+        transform: translate(-50%, -50%) scale(var(--scale-x, 1), var(--scale-y, 1)) skew(var(--skew-x, 0deg), var(--skew-y, 0deg)) rotate(3deg) translateY(-4px); 
     }
 }
 

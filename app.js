@@ -319,7 +319,7 @@ function playChibiVoice(voiceType, delay = 0) {
         osc2.frequency.linearRampToValueAtTime(1051.50, now + 0.05);
         osc2.frequency.exponentialRampToValueAtTime(885.00, now + 0.15);
         
-        gain.gain.setValueAtTime(0, now);
+        gain.gain.setValueAtTime(0.0001, now);
         gain.gain.linearRampToValueAtTime(0.18, now + 0.02); // 音量をアップ
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
         
@@ -345,7 +345,7 @@ function playChibiVoice(voiceType, delay = 0) {
         filter.type = 'lowpass';
         filter.frequency.setValueAtTime(2000, now);
         
-        gain.gain.setValueAtTime(0, now);
+        gain.gain.setValueAtTime(0.0001, now);
         gain.gain.linearRampToValueAtTime(0.20, now + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
         
@@ -365,7 +365,7 @@ function playChibiVoice(voiceType, delay = 0) {
         osc.frequency.setValueAtTime(550, now);
         osc.frequency.linearRampToValueAtTime(1300, now + 0.06);
         
-        gain.gain.setValueAtTime(0, now);
+        gain.gain.setValueAtTime(0.0001, now);
         gain.gain.linearRampToValueAtTime(0.16, now + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.10);
         
@@ -389,7 +389,7 @@ function playChibiVoice(voiceType, delay = 0) {
         osc2.frequency.setValueAtTime(992.77, now);
         osc2.frequency.setValueAtTime(1323.51, now + 0.05);
         
-        gain.gain.setValueAtTime(0, now);
+        gain.gain.setValueAtTime(0.0001, now);
         gain.gain.linearRampToValueAtTime(0.15, now + 0.01);
         gain.gain.setValueAtTime(0.15, now + 0.04);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
@@ -559,7 +559,7 @@ function playTimpani(freq, duration, delay = 0) {
     const now = ctx.currentTime + delay;
     
     // マレットのアタック音（バンドパスフィルタを通したホワイトノイズ）
-    const noiseBufferSize = ctx.sampleRate * 0.05;
+    const noiseBufferSize = Math.floor(ctx.sampleRate * 0.05);
     const noiseBuffer = ctx.createBuffer(1, noiseBufferSize, ctx.sampleRate);
     const noiseOutput = noiseBuffer.getChannelData(0);
     for (let i = 0; i < noiseBufferSize; i++) {
@@ -613,7 +613,7 @@ function playCymbalCrash(duration, delay = 0) {
     const ctx = state.audio.ctx;
     const now = ctx.currentTime + delay;
     
-    const bufferSize = ctx.sampleRate * duration;
+    const bufferSize = Math.floor(ctx.sampleRate * duration);
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
@@ -785,6 +785,112 @@ function playVictoryFanfare() {
     // ティンパニの大音量アタックとシンバルクラッシュの重なり
     playDrum(80, 16.5, 1.5);
     playCymbalCrash(4.5, 16.5 * beatDur);
+
+    // 世界樹開花を彩る高音のマジカルアルペジオ（グロッケンシュピール風）
+    const finalTime = 16.5 * beatDur;
+    const glockFreqs = [1046.50, 1318.51, 1567.98, 2093.00, 2637.02, 3135.96, 4186.01];
+    
+    const playGlockNote = (freq, delayTime) => {
+        const now = ctx.currentTime + delayTime;
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now);
+        
+        gainNode.gain.setValueAtTime(0.0001, now);
+        gainNode.gain.linearRampToValueAtTime(0.05, now + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+        
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.8);
+    };
+    
+    glockFreqs.forEach((freq, idx) => {
+        playGlockNote(freq, finalTime + idx * 0.08);
+    });
+}
+
+function startTitleBGM() {
+    if (!state.audio.ctx) {
+        state.audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    state.audio.soundEnabled = true;
+    if (state.audio.ctx.state === 'suspended') {
+        state.audio.ctx.resume();
+    }
+    
+    if (state.audio.bgmInterval) {
+        clearInterval(state.audio.bgmInterval);
+    }
+    
+    const ctx = state.audio.ctx;
+    
+    // 幻想的で魔法のようなAマイナー進行のアルペジオ (Am -> Fmaj7 -> G6 -> C)
+    const chords = [
+        [220.00, 261.63, 329.63, 440.00], // Am (A3, C4, E4, A4)
+        [174.61, 261.63, 349.23, 440.00], // Fmaj7 (F3, C4, F4, A4)
+        [196.00, 293.66, 392.00, 493.88], // G6 (G3, D4, G4, B4)
+        [130.81, 196.00, 261.63, 329.63]  // C (C3, G3, C4, E4)
+    ];
+    
+    let step = 0;
+    
+    state.audio.bgmInterval = setInterval(() => {
+        if (!state.audio.soundEnabled) return;
+        
+        const now = ctx.currentTime;
+        const chordIdx = Math.floor(step / 8) % chords.length;
+        const chord = chords[chordIdx];
+        const noteIdx = step % 8;
+        
+        if (noteIdx < 4) {
+            const freq = chord[noteIdx];
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            const filter = ctx.createBiquadFilter();
+            
+            osc.type = 'sine'; // やわらかい響き
+            osc.frequency.setValueAtTime(freq, now);
+            
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1000, now);
+            
+            gainNode.gain.setValueAtTime(0.0001, now);
+            gainNode.gain.linearRampToValueAtTime(0.012, now + 0.05);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+            
+            osc.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            osc.start(now);
+            osc.stop(now + 1.3);
+        } else if (noteIdx === 4 || noteIdx === 6) {
+            // オクターブ上のキラキラした高音を少し重ねる
+            const freq = chord[noteIdx - 4] * 2;
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now);
+            
+            gainNode.gain.setValueAtTime(0.0001, now);
+            gainNode.gain.linearRampToValueAtTime(0.005, now + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+            
+            osc.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            osc.start(now);
+            osc.stop(now + 0.7);
+        }
+        
+        step++;
+    }, 450); // タイトル画面はゆっくりと演奏 (450ms)
 }
 
 function startBGM() {
@@ -796,24 +902,74 @@ function startBGM() {
     }
     
     const ctx = state.audio.ctx;
+    
+    // C -> F -> G -> C -> Am -> Dm -> G -> C -> Em -> Am -> Dm -> G -> C -> F -> G -> C (16小節進行)
     const progressions = [
+        [261.63, 329.63, 392.00, 523.25], // C Major
+        [349.23, 440.00, 523.25, 698.46], // F Major
+        [392.00, 493.88, 587.33, 783.99], // G Major
+        [261.63, 329.63, 392.00, 523.25], // C Major
+        [220.00, 261.63, 329.63, 440.00], // A Minor
+        [293.66, 349.23, 440.00, 587.33], // D Minor
+        [392.00, 493.88, 587.33, 783.99], // G Major
+        [261.63, 329.63, 392.00, 523.25], // C Major
+        
+        // B Section
+        [329.63, 392.00, 493.88, 659.25], // E Minor
+        [220.00, 261.63, 329.63, 440.00], // A Minor
+        [293.66, 349.23, 440.00, 587.33], // D Minor
+        [392.00, 493.88, 587.33, 783.99], // G Major
         [261.63, 329.63, 392.00, 523.25], // C Major
         [349.23, 440.00, 523.25, 698.46], // F Major
         [392.00, 493.88, 587.33, 783.99], // G Major
         [261.63, 329.63, 392.00, 523.25]  // C Major
     ];
     
-    // 可愛く明るい64ステップの長めのメロディパターン（フレーズを大幅に拡張）
+    // 音階の周波数マッピング
+    const N = {
+        C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.00, A4: 440.00, B4: 493.88,
+        C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.00, B5: 987.77,
+        C6: 1046.50, D6: 1174.66, E6: 1318.51, F6: 1396.91, G6: 1567.98, A6: 1760.00, B6: 1975.53,
+        C7: 2093.00
+    };
+    
+    // 可愛く明るい128ステップの長尺メロディパターン（AABA/AABCクラシック構成）
     const melodyPattern = [
-        659.25, 783.99, 1046.50, 0,      1174.66, 1318.51, 1046.50, 0,       // Measure 1 (C)
-        698.46, 880.00, 1046.50, 0,      1174.66, 1046.50, 880.00,  0,       // Measure 2 (F)
-        783.99, 987.77, 1174.66, 0,      1318.51, 1174.66, 987.77,  1174.66, // Measure 3 (G)
-        1046.50, 0,      783.99,  659.25, 523.25,  0,       0,       0,       // Measure 4 (C)
+        // Measure 1 (C)
+        N.E5, N.G5, N.C6, 0, N.D6, N.E6, N.C6, 0,
+        // Measure 2 (F)
+        N.F5, N.A5, N.C6, 0, N.D6, N.C6, N.A5, 0,
+        // Measure 3 (G)
+        N.G5, N.B5, N.D6, 0, N.E6, N.D6, N.B5, N.D6,
+        // Measure 4 (C)
+        N.C6, 0, N.G5, N.E5, N.C5, 0, 0, 0,
         
-        1318.51, 1174.66, 1046.50, 783.99,  880.00,  1046.50, 783.99,  0,       // Measure 5 (C)
-        880.00,  1046.50, 1396.91, 1318.51, 1174.66, 1046.50, 880.00,  0,       // Measure 6 (F)
-        987.77,  1174.66, 1567.98, 1479.98, 1318.51, 1174.66, 987.77,  1174.66, // Measure 7 (G)
-        1046.50, 1567.98, 1318.51, 1046.50, 783.99,  659.25,  523.25,  0        // Measure 8 (C)
+        // Measure 5 (Am)
+        N.C5, N.E5, N.A5, 0, N.B5, N.C6, N.A5, 0,
+        // Measure 6 (Dm)
+        N.D5, N.F5, N.A5, 0, N.C6, N.B5, N.G5, 0,
+        // Measure 7 (G)
+        N.B5, N.D6, N.G6, N.F6, N.E6, N.D6, N.B5, N.G5,
+        // Measure 8 (C)
+        N.C6, 0, 0, 0, 0, 0, 0, 0,
+        
+        // Measure 9 (Em - B Section)
+        N.B5, N.G5, N.E5, 0, N.F5, N.G5, N.E5, 0,
+        // Measure 10 (Am)
+        N.C6, N.A5, N.E5, 0, N.F5, N.E5, N.A5, 0,
+        // Measure 11 (Dm)
+        N.D6, N.A5, N.F5, 0, N.G5, N.A5, N.F5, 0,
+        // Measure 12 (G)
+        N.G6, N.D6, N.B5, 0, N.C6, N.B5, N.G5, 0,
+        
+        // Measure 13 (C)
+        N.E5, N.G5, N.C6, 0, N.D6, N.E6, N.C6, 0,
+        // Measure 14 (F)
+        N.F5, N.A5, N.C6, 0, N.D6, N.C6, N.A5, 0,
+        // Measure 15 (G)
+        N.G5, N.B5, N.D6, N.F6, N.E6, N.D6, N.B5, N.G5,
+        // Measure 16 (C)
+        N.C6, N.G6, N.E6, N.C6, N.G5, N.E5, N.C5, 0
     ];
     
     let step = 0;
@@ -839,7 +995,7 @@ function startBGM() {
                 filter.type = 'lowpass';
                 filter.frequency.setValueAtTime(1200, now); 
                 
-                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.setValueAtTime(0.0001, now);
                 gainNode.gain.linearRampToValueAtTime(0.012, now + 0.8); 
                 gainNode.gain.setValueAtTime(0.012, now + 2.0);
                 gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 2.9);
@@ -858,7 +1014,7 @@ function startBGM() {
             bassOsc.type = 'sine';
             bassOsc.frequency.setValueAtTime(chord[0] / 2, now); 
             
-            bassGain.gain.setValueAtTime(0, now);
+            bassGain.gain.setValueAtTime(0.0001, now);
             bassGain.gain.linearRampToValueAtTime(0.02, now + 0.4);
             bassGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.8);
             
@@ -871,7 +1027,8 @@ function startBGM() {
         
         if (beat === 2 || beat === 6) {
             try {
-                const bufferSize = ctx.sampleRate * 0.05;
+                // キャッシュ回避のための整数化 Math.floor
+                const bufferSize = Math.floor(ctx.sampleRate * 0.05);
                 const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
                 const data = buffer.getChannelData(0);
                 for (let i = 0; i < bufferSize; i++) {
@@ -909,7 +1066,7 @@ function startBGM() {
             filter.type = 'lowpass';
             filter.frequency.setValueAtTime(1500, now); // 温かみのあるオルゴールトーン
             
-            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.setValueAtTime(0.0001, now);
             gainNode.gain.linearRampToValueAtTime(0.015, now + 0.01);
             gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.35); 
             
@@ -1054,7 +1211,7 @@ function createObstacleDOM(col, row, type) {
     if (type === 'ruin') {
         sprite.className = `building-sprite obstacle-ruin`;
         sprite.style.backgroundImage = `url('${state.assetsProcessed.house}')`;
-        sprite.style.left = `${x}px`;
+        sprite.style.left = `${x + BASE_TILE_WIDTH / 2}px`;
         sprite.style.top = `${y - 35}px`;
         sprite.style.width = '120px';
         sprite.style.height = '120px';
@@ -1267,6 +1424,7 @@ function clearObstacle(col, row, cost, reward) {
     }
     
     playBuildSound();
+    playChibiVoice('attack'); // 開拓時の気合ボイス
     showToast("土地を開拓しました！", "success");
     
     document.getElementById('details-panel').classList.add('hidden');
@@ -1359,12 +1517,13 @@ function placeBuildingAt(col, row, type, free = false) {
     } else {
         sprite.className = `building-sprite building-${type}`;
         sprite.style.backgroundImage = `url('${state.assetsProcessed[type]}')`;
-        sprite.style.left = `${x}px`;
+        sprite.style.left = `${x + BASE_TILE_WIDTH / 2}px`;
         sprite.style.top = `${y - 35}px`;
         sprite.style.width = '120px';
         sprite.style.height = '120px';
         objectsLayer.appendChild(sprite);
     }
+    playChibiVoice('spawn'); // 建築時のちびボイス
     
     const tile = document.getElementById(`tile-${col}-${row}`);
     if (tile) {
@@ -1415,6 +1574,7 @@ function upgradeBuilding(col, row, cost) {
     }
     
     playBuildSound();
+    playChibiVoice('spawn'); // レベルアップ時のちびボイス
     createFloatingText(col, row, `LvUP! ✨`, 'mana');
     
     showDetailsPanel(cell);
@@ -1439,6 +1599,7 @@ function demolishBuilding(col, row) {
     }
     
     playBuildSound();
+    playChibiVoice('hurt'); // 解体時の悲しげな（被弾）ちびボイス
     document.getElementById('details-panel').classList.add('hidden');
     updateHUD();
 }
@@ -1626,6 +1787,7 @@ function castInstantSpell(spellType) {
     state.resources.mana -= (config.cost.mana || 0);
     
     playMagicCastSound();
+    playChibiVoice('spawn'); // スペル発動時のちびボイス
     
     if (spellType === 'surge') {
         state.resources.mana += 50;
@@ -1656,6 +1818,7 @@ function castTargetSpell(col, row, spellType) {
             state.resources.gold -= (config.cost.gold || 0);
             state.resources.mana -= (config.cost.mana || 0);
             playMagicCastSound();
+            playChibiVoice('attack'); // スライム浄化時の気合ボイス
             
             const slime = state.characters[slimeIdx];
             const dom = document.getElementById(`char-${slime.id}`);
@@ -1673,6 +1836,7 @@ function castTargetSpell(col, row, spellType) {
             state.resources.gold -= (config.cost.gold || 0);
             state.resources.mana -= (config.cost.mana || 0);
             playMagicCastSound();
+            playChibiVoice('attack'); // 障害物浄化時の気合ボイス
             
             const sprite = document.getElementById(`obstacle-sprite-${col}-${row}`);
             if (sprite) sprite.remove();
@@ -1829,7 +1993,7 @@ function getRandomWalkableCell() {
 function createCharacterDOM(char) {
     const objectsLayer = document.getElementById('objects-layer');
     const el = document.createElement('div');
-    el.className = `character-sprite ${char.type === 'slime' ? 'slime active-slime' : char.subType.replace('_', '-')}`;
+    el.className = `character-sprite ${char.type === 'slime' ? 'slime active-slime' : char.subType.replace('_', '-')} dir-down`;
     el.id = `char-${char.id}`;
     
     let assetKey = char.subType;
@@ -1886,10 +2050,19 @@ function updateCharacters() {
             char.x += (dx / dist) * step;
             char.y += (dy / dist) * step;
             
-            // 体の方向（左右）および歩行クラスの設定
-            // 画面空間上での移動方向 (dx - dy) に応じて反転する
-            const screenDx = dx - dy;
-            dom.style.setProperty('--scale-x', screenDx >= 0 ? '1' : '-1');
+            // 画面空間上の移動方向（dxScreen, dyScreen）を計算して向き（4方向）を判定
+            const dxScreen = (dx - dy) * (BASE_TILE_WIDTH / 2);
+            const dyScreen = (dx + dy) * (BASE_TILE_HEIGHT / 2);
+            
+            let dir = 'down';
+            if (Math.abs(dxScreen) > Math.abs(dyScreen)) {
+                dir = dxScreen >= 0 ? 'right' : 'left';
+            } else {
+                dir = dyScreen >= 0 ? 'down' : 'up';
+            }
+            
+            dom.classList.remove('dir-up', 'dir-down', 'dir-left', 'dir-right');
+            dom.classList.add(`dir-${dir}`);
             dom.classList.add('walking');
         } else {
             char.x = char.targetX;
@@ -2508,8 +2681,22 @@ window.addEventListener('DOMContentLoaded', () => {
     initTooltip();
     initPanelCollapsible();
     
+    // 初回の画面クリック・タッチでタイトル画面用BGMを再生
+    const startTitleMusicOnInteraction = () => {
+        if (!state.audio.ctx || state.audio.ctx.state === 'suspended') {
+            startTitleBGM();
+        }
+        window.removeEventListener('click', startTitleMusicOnInteraction);
+        window.removeEventListener('touchstart', startTitleMusicOnInteraction);
+    };
+    window.addEventListener('click', startTitleMusicOnInteraction);
+    window.addEventListener('touchstart', startTitleMusicOnInteraction);
+
     document.getElementById('btn-start').addEventListener('click', () => {
-        initAudio(); // AudioContextの初期化を先に実行する
+        window.removeEventListener('click', startTitleMusicOnInteraction);
+        window.removeEventListener('touchstart', startTitleMusicOnInteraction);
+        
+        initAudio(); // AudioContextの初期化を先に実行する（本編BGM再生によりタイトルBGMは停止）
         playClickSound(); // これによりクリック音が正常に鳴る
         
         document.getElementById('start-screen').classList.add('hidden');
