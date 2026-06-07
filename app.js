@@ -294,13 +294,13 @@ function playSynthSound(freqs, duration, type = 'sine', volume = 0.1, delay = 0)
     });
 }
 
-function playChibiVoice(voiceType) {
+function playChibiVoice(voiceType, delay = 0) {
     if (!state.audio.soundEnabled || !state.audio.ctx) return;
     const ctx = state.audio.ctx;
     if (ctx.state === 'suspended') {
         ctx.resume();
     }
-    const now = ctx.currentTime;
+    const now = ctx.currentTime + delay;
     
     if (voiceType === 'spawn') {
         // ちびボイス：「ヤッタ！」のような明るい挨拶音
@@ -958,33 +958,15 @@ function initGame() {
         }
     }
     
-    // 最初からレンガの道路（街路）を配置する (十字路デザイン - 全幅拡張)
-    const initialRoads = [];
-    for (let i = 0; i < GRID_SIZE; i++) {
-        initialRoads.push({c: i, r: 3});
-        if (i !== 3) {
-            initialRoads.push({c: 3, r: i});
-        }
-    }
-    initialRoads.forEach(coord => {
-        const cell = state.grid[coord.r][coord.c];
-        cell.tileType = 'dirt';
-        
-        const tile = document.getElementById(`tile-${coord.c}-${coord.r}`);
-        if (tile) {
-            tile.style.backgroundImage = `url('${state.assetsProcessed.dirt}')`;
-            tile.dataset.tip = `🧱 <b>レンガ道 (${coord.c}, ${coord.r})</b><br>街の道路です。<br>・歩くスピードが <b>1.45倍</b> になります。`;
-        }
-    });
-    
-    // 障害物の初期配置 (道路の上は避ける)
+    // 障害物の初期配置 (中央の建物エリアは避ける)
     let obstacleCount = 0;
     while (obstacleCount < 6) {
         const r = Math.floor(Math.random() * GRID_SIZE);
         const c = Math.floor(Math.random() * GRID_SIZE);
         
-        const isRoad = initialRoads.some(coord => coord.c === c && coord.r === r);
-        if (isRoad) continue;
+        // 初期建物予定地（2〜4行、2〜4列）を避ける
+        const isCenterZone = (c >= 2 && c <= 4 && r >= 2 && r <= 4);
+        if (isCenterZone) continue;
         
         // 初期建物予定地を避ける
         const isInitialBuilding = (c === 2 && r === 2) || (c === 2 && r === 4) || (c === 4 && r === 2) || (c === 4 && r === 4);
@@ -1048,6 +1030,9 @@ function createTileDOM(col, row) {
     tileContainer.style.zIndex = col + row;
     tileContainer.dataset.col = col;
     tileContainer.dataset.row = row;
+    
+    // 隙間の道路スペースとして機能させるため、すべてのコンテナの背景にレンガ道を敷く
+    tileContainer.style.backgroundImage = `url('${state.assetsProcessed.dirt}')`;
     
     const tile = document.createElement('div');
     tile.className = 'tile';
@@ -1127,11 +1112,7 @@ function handleTileClick(col, row) {
     }
     
     if (state.selectedTool) {
-        if (state.selectedTool.startsWith('road_')) {
-            layRoad(col, row, state.selectedTool.replace('road_', ''));
-        } else {
-            placeBuildingAt(col, row, state.selectedTool);
-        }
+        placeBuildingAt(col, row, state.selectedTool);
         return;
     }
     
@@ -1462,41 +1443,9 @@ function demolishBuilding(col, row) {
     updateHUD();
 }
 
-function layRoad(col, row, type) {
-    const cell = state.grid[row][col];
-    if (cell.building || cell.obstacle) {
-        showToast("この場所には道路を敷けません", "warning");
-        return;
-    }
-    
-    const tile = document.getElementById(`tile-${col}-${row}`);
-    if (!tile) return;
-    
-    if (type === 'dirt') {
-        if (cell.tileType === 'dirt') return;
-        if (state.resources.gold < 5) {
-            showToast("ゴールドが足りません", "warning");
-            return;
-        }
-        state.resources.gold -= 5;
-        cell.tileType = 'dirt';
-        tile.style.backgroundImage = `url('${state.assetsProcessed.dirt}')`;
-        tile.dataset.tip = `🧱 <b>レンガ道 (${col}, ${row})</b><br>レンガ舗装された道です。<br>・移動速度が <b>1.45倍</b> にアップします。`;
-        playBuildSound();
-    } else {
-        if (cell.tileType === 'grass') return;
-        cell.tileType = 'grass';
-        tile.style.backgroundImage = `url('${state.assetsProcessed.grass}')`;
-        tile.dataset.tip = `🌿 <b>草原タイル (${col}, ${row})</b><br>建物を建設できる平らな草地です。`;
-        playBuildSound();
-    }
-    
-    updateHUD();
-}
-
 function clearSelectedTool() {
     state.selectedTool = null;
-    document.querySelectorAll('.shop-item, .shop-item-road, .spell-btn').forEach(btn => btn.classList.remove('selected', 'active'));
+    document.querySelectorAll('.shop-item, .spell-btn').forEach(btn => btn.classList.remove('selected', 'active'));
 }
 
 // ==========================================
@@ -1844,16 +1793,16 @@ function spawnCitizen() {
     const subType = gender === 'boy' ? 'knight_boy' : 'mage_girl';
     
     const id = state.nextCharId++;
-    // 最初は道路の適当なポイントに住民を出現させる
-    const roadTile = getRandomRoadCell();
+    // 最初は適当な空きセルに住民を出現させる
+    const spawnTile = getRandomWalkableCell();
     const citizen = {
         id: id,
         type: 'citizen',
         subType: subType,
-        x: roadTile ? roadTile.col : 3,
-        y: roadTile ? roadTile.row : 3,
-        targetX: roadTile ? roadTile.col : 3,
-        targetY: roadTile ? roadTile.row : 3,
+        x: spawnTile ? spawnTile.col : 3,
+        y: spawnTile ? spawnTile.row : 3,
+        targetX: spawnTile ? spawnTile.col : 3,
+        targetY: spawnTile ? spawnTile.row : 3,
         state: 'wander',
         speed: 0.03,
         path: []
@@ -1861,19 +1810,20 @@ function spawnCitizen() {
     
     state.characters.push(citizen);
     createCharacterDOM(citizen);
+    playChibiVoice('spawn'); // 住民出現時にも声を発声する
 }
 
-// 道路セルをランダムに1個取得する
-function getRandomRoadCell() {
-    const roads = [];
+// 建物や障害物のない空きセルをランダムに1個取得する
+function getRandomWalkableCell() {
+    const walkables = [];
     for (let r = 0; r < GRID_SIZE; r++) {
         for (let c = 0; c < GRID_SIZE; c++) {
-            if (state.grid[r][c].tileType === 'dirt' && !state.grid[r][c].building) {
-                roads.push(state.grid[r][c]);
+            if (!state.grid[r][c].building && !state.grid[r][c].obstacle) {
+                walkables.push(state.grid[r][c]);
             }
         }
     }
-    return roads.length > 0 ? roads[Math.floor(Math.random() * roads.length)] : null;
+    return walkables.length > 0 ? walkables[Math.floor(Math.random() * walkables.length)] : null;
 }
 
 function createCharacterDOM(char) {
@@ -1931,15 +1881,8 @@ function updateCharacters() {
         const dy = char.targetY - char.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
         
-        let speedMod = 1.0;
-        const currentTileR = Math.min(GRID_SIZE - 1, Math.max(0, Math.round(char.y)));
-        const currentTileC = Math.min(GRID_SIZE - 1, Math.max(0, Math.round(char.x)));
-        if (state.grid[currentTileR][currentTileC].tileType === 'dirt') {
-            speedMod = 1.45; 
-        }
-        
         if (dist > 0.05) {
-            const step = Math.min(char.speed * speedMod || 0.03, dist);
+            const step = Math.min(char.speed || 0.03, dist);
             char.x += (dx / dist) * step;
             char.y += (dy / dist) * step;
             
@@ -1975,65 +1918,16 @@ function updateCharacters() {
     });
 }
 
-// 最寄りの道路セルまでの最短経路をBFSで探索する
-function findPathToRoad(startCol, startRow) {
-    const queue = [[{x: startCol, y: startRow}]];
-    const visited = new Set();
-    visited.add(`${startCol},${startRow}`);
-    
-    while (queue.length > 0) {
-        const path = queue.shift();
-        const curr = path[path.length - 1];
-        
-        // もしこのセルが道路なら、これが目的地
-        if (state.grid[curr.y][curr.x].tileType === 'dirt') {
-            return path;
-        }
-        
-        // 上下左右の4方向を探索
-        const dirs = [
-            {dx: 0, dy: -1},
-            {dx: 0, dy: 1},
-            {dx: -1, dy: 0},
-            {dx: 1, dy: 0}
-        ];
-        
-        for (const dir of dirs) {
-            const nx = curr.x + dir.dx;
-            const ny = curr.y + dir.dy;
-            
-            if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
-                const cell = state.grid[ny][nx];
-                // 建物や障害物は通れない
-                if (!cell.building && !cell.obstacle) {
-                    const key = `${nx},${ny}`;
-                    if (!visited.has(key)) {
-                        visited.add(key);
-                        queue.push([...path, {x: nx, y: ny}]);
-                    }
-                }
-            }
-        }
-    }
-    return null;
-}
-
-// キャラクターが道路（レンガ道）のみを歩くように目標を設定するAI
+// キャラクターが自由に空きセルを移動するAI（障害物や建物は避ける）
 function setRandomTarget(char) {
     const currentX = Math.round(char.x);
     const currentY = Math.round(char.y);
     
-    // もし市民や冒険者が道路の上にいない場合、最寄りの道路への復帰経路を探す
-    if (char.type !== 'slime' && state.grid[currentY][currentX].tileType !== 'dirt') {
-        const roadPath = findPathToRoad(currentX, currentY);
-        if (roadPath && roadPath.length > 1) {
-            char.path = roadPath.slice(1);
-            const nextNode = char.path.shift();
-            char.targetX = nextNode.x;
-            char.targetY = nextNode.y;
-            char.state = 'walk_to_road';
-            return;
-        }
+    // 市民や冒険者は、移動を開始するときに低確率（例：12%）でちびボイスを出す（もっと気軽に喋るように調整）
+    if (char.type !== 'slime' && Math.random() < 0.12) {
+        const voices = ['click', 'spawn'];
+        const randomVoice = voices[Math.floor(Math.random() * voices.length)];
+        playChibiVoice(randomVoice);
     }
     
     const neighbors = [];
@@ -2050,17 +1944,9 @@ function setRandomTarget(char) {
         
         if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
             const cell = state.grid[ny][nx];
-            
-            // スライムはモンスターなので、道路以外の草地も自由に歩ける
-            if (char.type === 'slime') {
-                if (!cell.building && !cell.obstacle) {
-                    neighbors.push({x: nx, y: ny});
-                }
-            } else {
-                // 市民と冒険者はレンガ舗装された「道」だけを歩く！ (建物や障害物は避ける)
-                if (cell.tileType === 'dirt' && !cell.building && !cell.obstacle) {
-                    neighbors.push({x: nx, y: ny});
-                }
+            // 建物や障害物は避ける
+            if (!cell.building && !cell.obstacle) {
+                neighbors.push({x: nx, y: ny});
             }
         }
     }
@@ -2070,24 +1956,8 @@ function setRandomTarget(char) {
         char.targetX = choice.x;
         char.targetY = choice.y;
     } else {
-        // 周辺に動ける道路が無い場合の脱出フォールバック（隣接する空きセル）
-        const fallbackNeighbors = [];
-        for (const dir of dirs) {
-            const nx = Math.max(0, Math.min(GRID_SIZE - 1, currentX + dir.dx));
-            const ny = Math.max(0, Math.min(GRID_SIZE - 1, currentY + dir.dy));
-            const cell = state.grid[ny][nx];
-            if (!cell.building && !cell.obstacle) {
-                fallbackNeighbors.push({x: nx, y: ny});
-            }
-        }
-        if (fallbackNeighbors.length > 0) {
-            const choice = fallbackNeighbors[Math.floor(Math.random() * fallbackNeighbors.length)];
-            char.targetX = choice.x;
-            char.targetY = choice.y;
-        } else {
-            char.targetX = char.x;
-            char.targetY = char.y;
-        }
+        char.targetX = char.x;
+        char.targetY = char.y;
     }
     char.state = 'wander';
 }
@@ -2155,8 +2025,8 @@ function attackEnemy(attacker, defender) {
     defender.hp -= dmg;
     
     createFloatingText(defender.x, defender.y, `-${dmg}`, 'damage');
-    playChibiVoice('attack'); 
-    playChibiVoice('hurt'); 
+    playChibiVoice('attack', 0); 
+    playChibiVoice('hurt', 0.12); 
     
     const dom = document.getElementById(`char-${attacker.id}`);
     if (dom) {
@@ -2639,8 +2509,8 @@ window.addEventListener('DOMContentLoaded', () => {
     initPanelCollapsible();
     
     document.getElementById('btn-start').addEventListener('click', () => {
-        playClickSound();
-        initAudio();
+        initAudio(); // AudioContextの初期化を先に実行する
+        playClickSound(); // これによりクリック音が正常に鳴る
         
         document.getElementById('start-screen').classList.add('hidden');
         document.getElementById('game-container').classList.remove('hidden');
@@ -2692,20 +2562,6 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    document.querySelectorAll('.shop-item-road').forEach(item => {
-        item.addEventListener('click', () => {
-            playClickSound();
-            const isSelected = item.classList.contains('selected');
-            clearSelectedTool();
-            
-            if (!isSelected) {
-                item.classList.add('selected');
-                state.selectedTool = `road_${item.dataset.road}`;
-                showToast("マップをクリックして道路を敷いてください", "info");
-            }
-        });
-    });
-    
     document.getElementById('spell-rain').addEventListener('click', startRainSpell);
     document.getElementById('spell-surge').addEventListener('click', () => selectSpell('surge'));
     document.getElementById('spell-slime').addEventListener('click', () => selectSpell('slime'));
@@ -2722,4 +2578,13 @@ window.addEventListener('DOMContentLoaded', () => {
             state.selectedCell = null;
         }
     });
+
+    // ブラウザの制約を回避するため、ページ上のどこがタップ・クリックされてもAudioContextを安全に再開させる
+    const resumeAudio = () => {
+        if (state.audio.ctx && state.audio.ctx.state === 'suspended') {
+            state.audio.ctx.resume();
+        }
+    };
+    document.addEventListener('click', resumeAudio);
+    document.addEventListener('touchstart', resumeAudio, { passive: true });
 });

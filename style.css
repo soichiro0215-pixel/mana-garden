@@ -275,13 +275,19 @@ body {
     width: var(--tile-width);
     height: var(--tile-height);
     transform-origin: bottom center;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center bottom;
 }
 
-/* Tile styling */
+/* Tile styling - scaled down to create natural street gaps */
 .tile {
     position: absolute;
-    width: 100%;
-    height: 100%;
+    width: 88%;
+    height: 88%;
+    left: 6%;
+    top: 6%;
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center bottom;
@@ -301,7 +307,7 @@ body {
 /* Buildings placement on top of tiles */
 .building-sprite {
     position: absolute;
-    bottom: 25px; /* Offset to sit properly on top of isometric diamond */
+    bottom: 20px; /* Offset to sit properly on top of isometric diamond */
     left: 50%;
     transform: translateX(-50%);
     width: 110px;
@@ -614,10 +620,7 @@ body {
 }
 
 .shop-tabs {
-    display: flex;
-    gap: 8px;
-    border-bottom: 1px solid var(--border-glass);
-    padding-bottom: 6px;
+    display: none; /* Hide since road tab is removed */
 }
 
 .shop-tab {
@@ -1109,10 +1112,10 @@ body {
 /* --- Walk Waddle Animation --- */
 @keyframes walkWaddle {
     0%, 100% { 
-        transform: translate(-50%, -50%) scaleX(var(--scale-x, 1)) rotate(-3deg) translateY(0); 
+        transform: translate(-50%, -50%) scaleX(var(--scale-x, 1)) skewX(8deg) rotate(-3deg) translateY(0); 
     }
     50% { 
-        transform: translate(-50%, -50%) scaleX(var(--scale-x, 1)) rotate(3deg) translateY(-3px); 
+        transform: translate(-50%, -50%) scaleX(var(--scale-x, 1)) skewX(8deg) rotate(3deg) translateY(-3px); 
     }
 }
 
