@@ -254,6 +254,7 @@ body {
     left: 0;
     overflow: hidden;
     cursor: grab;
+    touch-action: none; /* Mobile swipe/pan optimization */
 }
 #viewport:active {
     cursor: grabbing;
@@ -1161,5 +1162,122 @@ body {
 .clear-stats p {
     font-size: 1.1rem;
     color: var(--text-color);
+}
+
+/* --- Mobile Responsive Sizing --- */
+@media (max-width: 768px) {
+    #hud {
+        top: 10px;
+        gap: 8px;
+        padding: 6px 12px;
+        width: 95%;
+        justify-content: space-around;
+    }
+    .hud-item {
+        font-size: 0.8rem;
+        gap: 3px;
+    }
+    .hud-icon {
+        font-size: 0.95rem;
+    }
+    .hud-value {
+        min-width: unset;
+    }
+    .hud-change {
+        font-size: 0.6rem;
+        bottom: -11px;
+    }
+    #spell-book {
+        top: 70px;
+        left: 10px;
+        width: 130px;
+        padding: 8px;
+    }
+    #faction-panel {
+        top: 70px;
+        right: 10px;
+        width: 200px;
+        padding: 8px;
+        max-height: calc(100vh - 240px);
+    }
+    #zoom-controls {
+        top: 70px;
+        left: 155px; /* Positioned to the right of mobile spell book */
+        gap: 6px;
+        padding: 6px;
+    }
+    .zoom-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 0.95rem;
+    }
+    .spell-btn {
+        padding: 6px;
+        font-size: 0.75rem;
+        border-radius: 8px;
+    }
+    .spell-name {
+        font-size: 0.7rem;
+    }
+    .spell-cost {
+        font-size: 0.65rem;
+    }
+    .faction-header img {
+        width: 30px;
+        height: 30px;
+    }
+    .faction-header h4 {
+        font-size: 0.8rem;
+    }
+    .rep-text {
+        font-size: 0.65rem;
+    }
+    .quest-desc {
+        font-size: 0.7rem;
+    }
+    .btn-quest {
+        font-size: 0.65rem;
+        padding: 2px 6px;
+    }
+    #shop {
+        padding: 6px;
+    }
+    .shop-tabs button {
+        padding: 4px 10px;
+        font-size: 0.8rem;
+    }
+    .shop-items-container {
+        gap: 6px;
+        padding: 4px 0;
+    }
+    .shop-item {
+        width: 75px;
+        padding: 4px;
+        border-radius: 8px;
+    }
+    .shop-item-preview {
+        height: 40px;
+    }
+    .shop-item-preview img {
+        max-width: 38px;
+        max-height: 38px;
+    }
+    .shop-item-name {
+        font-size: 0.7rem;
+    }
+    .shop-item-cost {
+        font-size: 0.6rem;
+    }
+    .shop-item-preview-tile img {
+        max-width: 35px;
+        max-height: 25px;
+    }
+    #details-panel {
+        width: 90%;
+        max-width: 320px;
+        bottom: 120px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
 }
 

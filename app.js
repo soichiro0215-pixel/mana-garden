@@ -148,7 +148,10 @@ const ASSET_FILES = {
 // 1. 画像アセット透過 ＆ 自動余白クロップ処理
 // ==========================================
 
+const ASSET_VERSION = 19;
+
 function cropAndMakeTransparent(imgSrc) {
+    const cacheBustedSrc = imgSrc + "?v=" + ASSET_VERSION;
     return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
@@ -206,14 +209,14 @@ function cropAndMakeTransparent(imgSrc) {
                 resolve(cropCanvas.toDataURL());
             } catch (e) {
                 console.warn("CORS error in crop. Active local-fallback-mode for offline play.");
-                document.body.classList.add('local-fallback-mode'); // ローカル実行時の白枠をmix-blendで消す
-                resolve(imgSrc);
+                document.body.classList.add('local-fallback-mode');
+                resolve(cacheBustedSrc);
             }
         };
         img.onerror = () => {
-            resolve(imgSrc);
+            resolve(cacheBustedSrc);
         };
-        img.src = imgSrc;
+        img.src = cacheBustedSrc;
     });
 }
 
@@ -233,9 +236,16 @@ async function preloadAndProcessAssets() {
 // ==========================================
 
 function initAudio() {
-    if (state.audio.ctx) return;
-    state.audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!state.audio.ctx) {
+        state.audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
     state.audio.soundEnabled = true;
+    
+    // ブラウザのオートプレイ制限により suspended になっている場合は resume する
+    if (state.audio.ctx.state === 'suspended') {
+        state.audio.ctx.resume();
+    }
+    
     startBGM();
 }
 
@@ -261,6 +271,9 @@ function toggleSound() {
 function playSynthSound(freqs, duration, type = 'sine', volume = 0.1, delay = 0) {
     if (!state.audio.soundEnabled || !state.audio.ctx) return;
     const ctx = state.audio.ctx;
+    if (ctx.state === 'suspended') {
+        ctx.resume();
+    }
     const now = ctx.currentTime + delay;
     
     freqs.forEach((freq) => {
@@ -284,41 +297,111 @@ function playSynthSound(freqs, duration, type = 'sine', volume = 0.1, delay = 0)
 function playChibiVoice(voiceType) {
     if (!state.audio.soundEnabled || !state.audio.ctx) return;
     const ctx = state.audio.ctx;
+    if (ctx.state === 'suspended') {
+        ctx.resume();
+    }
     const now = ctx.currentTime;
     
     if (voiceType === 'spawn') {
-        playSynthSound([880.00], 0.08, 'triangle', 0.08, 0); 
-        playSynthSound([1174.66], 0.12, 'triangle', 0.08, 0.06); 
+        // ちびボイス：「ヤッタ！」のような明るい挨拶音
+        // 2つのオシレータによるコーラス感＋すばやい音程変化
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc1.type = 'triangle';
+        osc1.frequency.setValueAtTime(783.99, now); // G5
+        osc1.frequency.linearRampToValueAtTime(1046.50, now + 0.05); // C6
+        osc1.frequency.exponentialRampToValueAtTime(880.00, now + 0.15); // A5
+        
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(788.99, now); // 微小デチューン
+        osc2.frequency.linearRampToValueAtTime(1051.50, now + 0.05);
+        osc2.frequency.exponentialRampToValueAtTime(885.00, now + 0.15);
+        
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.18, now + 0.02); // 音量をアップ
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+        
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 0.2);
+        osc2.stop(now + 0.2);
     } 
     else if (voiceType === 'attack') {
+        // ちびボイス：「ヤッ！」と鋭く叫ぶ攻撃音
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(800, now);
-        osc.frequency.exponentialRampToValueAtTime(300, now + 0.08); 
-        gain.gain.setValueAtTime(0.08, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-        osc.connect(gain);
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.exponentialRampToValueAtTime(450, now + 0.12);
+        
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(2000, now);
+        
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.20, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+        
+        osc.connect(filter);
+        filter.connect(gain);
         gain.connect(ctx.destination);
+        
         osc.start(now);
-        osc.stop(now + 0.1);
+        osc.stop(now + 0.15);
     } 
     else if (voiceType === 'hurt') {
+        // ちびボイス：「キュッ！」としぼりだす被弾音
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
+        
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(500, now);
-        osc.frequency.linearRampToValueAtTime(1200, now + 0.05); 
-        gain.gain.setValueAtTime(0.06, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+        osc.frequency.setValueAtTime(550, now);
+        osc.frequency.linearRampToValueAtTime(1300, now + 0.06);
+        
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.16, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.10);
+        
         osc.connect(gain);
         gain.connect(ctx.destination);
+        
         osc.start(now);
-        osc.stop(now + 0.1);
+        osc.stop(now + 0.12);
     } 
     else if (voiceType === 'click') {
-        playSynthSound([1046.50], 0.05, 'sine', 0.08, 0); 
-        playSynthSound([1318.51], 0.06, 'sine', 0.08, 0.04); 
+        // ちびボイス：「はーい！」のようなピコッとした可愛らしいお返事音
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc1.type = 'triangle';
+        osc1.frequency.setValueAtTime(987.77, now); // B5
+        osc1.frequency.setValueAtTime(1318.51, now + 0.05); // E6
+        
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(992.77, now);
+        osc2.frequency.setValueAtTime(1323.51, now + 0.05);
+        
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.15, now + 0.01);
+        gain.gain.setValueAtTime(0.15, now + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+        
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 0.15);
+        osc2.stop(now + 0.15);
     }
 }
 
@@ -402,63 +485,335 @@ function playMagicCastSound() {
     }
 }
 
+// 金管楽器（ブラス）のような音色を合成するヘルパー関数
+function playBrassNote(freq, duration, delay = 0) {
+    if (!state.audio.soundEnabled || !state.audio.ctx) return;
+    const ctx = state.audio.ctx;
+    const now = ctx.currentTime + delay;
+    
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const osc3 = ctx.createOscillator(); // 豊かさを加えるサブオシレーター
+    
+    const gainNode = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    
+    // メインのノコギリ波オシレーター
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(freq, now);
+    
+    osc2.type = 'sawtooth';
+    osc2.frequency.setValueAtTime(freq * 1.006, now); // デチューン
+    
+    // サブオシレーター（温かみと深みを与えるため、1オクターブ下または同オクターブの三角波）
+    if (freq > 150) {
+        osc3.type = 'triangle';
+        osc3.frequency.setValueAtTime(freq * 0.5, now);
+    } else {
+        osc3.type = 'triangle';
+        osc3.frequency.setValueAtTime(freq, now);
+    }
+    
+    // 金管楽器のフィルターエンベロープ（アタックで開き、リリースに向けて徐々に閉じる）
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(200, now);
+    filter.frequency.exponentialRampToValueAtTime(2000, now + 0.08);
+    filter.frequency.linearRampToValueAtTime(900, now + duration);
+    
+    // 音量エンベロープ
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.04, now + 0.08); // アタック
+    gainNode.gain.setValueAtTime(0.04, now + duration - 0.1);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration); // リリース
+    
+    osc1.connect(filter);
+    osc2.connect(filter);
+    osc3.connect(filter);
+    
+    // ステレオパンニング（対応している場合）で広がりを持たせる
+    if (ctx.createStereoPanner) {
+        const panner = ctx.createStereoPanner();
+        const panValue = Math.sin(freq) * 0.3; // 周波数に基づくデタミニスティックなパン
+        panner.pan.setValueAtTime(panValue, now);
+        filter.connect(panner);
+        panner.connect(gainNode);
+    } else {
+        filter.connect(gainNode);
+    }
+    
+    gainNode.connect(ctx.destination);
+    
+    osc1.start(now);
+    osc2.start(now);
+    osc3.start(now);
+    
+    osc1.stop(now + duration + 0.1);
+    osc2.stop(now + duration + 0.1);
+    osc3.stop(now + duration + 0.1);
+}
+
+// 荘厳なティンパニ（ケトルドラム）の音色を合成するヘルパー関数
+function playTimpani(freq, duration, delay = 0) {
+    if (!state.audio.soundEnabled || !state.audio.ctx) return;
+    const ctx = state.audio.ctx;
+    const now = ctx.currentTime + delay;
+    
+    // マレットのアタック音（バンドパスフィルタを通したホワイトノイズ）
+    const noiseBufferSize = ctx.sampleRate * 0.05;
+    const noiseBuffer = ctx.createBuffer(1, noiseBufferSize, ctx.sampleRate);
+    const noiseOutput = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseBufferSize; i++) {
+        noiseOutput[i] = Math.random() * 2 - 1;
+    }
+    const noiseNode = ctx.createBufferSource();
+    noiseNode.buffer = noiseBuffer;
+    
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.setValueAtTime(150, now);
+    noiseFilter.Q.setValueAtTime(2.0, now);
+    
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.08, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+    
+    noiseNode.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    
+    // ドラム胴体音（ピッチスイープ付き三角波）
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq * 1.5, now);
+    osc.frequency.exponentialRampToValueAtTime(freq, now + 0.08); // ピッチの減衰
+    
+    const gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.25, now + 0.01); // 鋭いアタック
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    
+    // こもりつつ太い低音にするローパスフィルター
+    const lpFilter = ctx.createBiquadFilter();
+    lpFilter.type = 'lowpass';
+    lpFilter.frequency.setValueAtTime(300, now);
+    lpFilter.frequency.exponentialRampToValueAtTime(80, now + duration);
+    
+    osc.connect(lpFilter);
+    lpFilter.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    noiseNode.start(now);
+    osc.start(now);
+    osc.stop(now + duration + 0.1);
+}
+
+// シンバルのクラッシュ音を合成するヘルパー関数
+function playCymbalCrash(duration, delay = 0) {
+    if (!state.audio.soundEnabled || !state.audio.ctx) return;
+    const ctx = state.audio.ctx;
+    const now = ctx.currentTime + delay;
+    
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+    }
+    
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(3000, now);
+    filter.frequency.linearRampToValueAtTime(6000, now + duration);
+    
+    const gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.08, now + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    
+    source.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    source.start(now);
+    source.stop(now + duration + 0.1);
+}
+
+// 荘厳でかっこいい王宮風のファンファーレ
 function playVictoryFanfare() {
     if (!state.audio.soundEnabled || !state.audio.ctx) return;
     const ctx = state.audio.ctx;
-    const now = ctx.currentTime;
+    if (ctx.state === 'suspended') {
+        ctx.resume();
+    }
     
-    const melody = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
-    melody.forEach((freq, idx) => {
-        const d = idx * 0.12;
-        const t = now + d;
-        
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, t);
-        
-        gain.gain.setValueAtTime(0.08, t);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
-        
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc.start(t);
-        osc.stop(t + 2.0);
-    });
+    // 正確な音階周波数定義
+    const N = {
+        C2: 65.41, D2: 73.42, Eb2: 77.78, E2: 82.41, F2: 87.31, G2: 98.00, Ab2: 103.83, A2: 110.00, Bb2: 116.54, B2: 123.47,
+        C3: 130.81, D3: 146.83, Eb3: 155.56, E3: 164.81, F3: 174.61, G3: 196.00, Ab3: 207.65, A3: 220.00, Bb3: 233.08, B3: 246.94,
+        C4: 261.63, D4: 293.66, Eb4: 311.13, E4: 329.63, F4: 349.23, G4: 392.00, Ab4: 415.30, A4: 440.00, Bb4: 466.16, B4: 493.88,
+        C5: 523.25, D5: 587.33, Eb5: 622.25, E5: 659.25, F5: 698.46, G5: 783.99, Ab5: 830.61, A5: 880.00, Bb5: 932.33, B5: 987.77,
+        C6: 1046.50
+    };
+
+    const beatDur = 0.4; // 150 BPM
     
-    const chords = [261.63, 329.63, 392.00];
-    chords.forEach((freq) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, now + 0.6);
-        
-        gain.gain.setValueAtTime(0.1, now + 0.6);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 3.0);
-        
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc.start(now + 0.6);
-        osc.stop(now + 3.2);
-    });
+    const playChord = (chordNotes, bassNotes, beat, duration) => {
+        const delay = beat * beatDur;
+        chordNotes.forEach(freq => {
+            playBrassNote(freq, duration * beatDur, delay);
+        });
+        bassNotes.forEach(freq => {
+            playBrassNote(freq, duration * beatDur, delay);
+        });
+    };
+    
+    const playDrum = (freq, beat, duration) => {
+        playTimpani(freq, duration * beatDur, beat * beatDur);
+    };
+
+    // --- 第1フレーズ：勇壮な立ち上がり ---
+    // Beat 0: C Major
+    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 0.0, 0.45);
+    playDrum(80, 0.0, 0.5);
+    
+    // Beat 0.5: C Major short
+    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 0.5, 0.2);
+    
+    // Beat 0.75: C Major short
+    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 0.75, 0.2);
+    
+    // Beat 1.0: F Major (サブドミナント)
+    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 1.0, 0.9);
+    playDrum(87, 1.0, 0.8);
+    
+    // Beat 2.0: F Major
+    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 2.0, 0.45);
+    playDrum(87, 2.0, 0.5);
+    
+    // Beat 2.5: F Major short
+    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 2.5, 0.2);
+    
+    // Beat 2.75: F Major short
+    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 2.75, 0.2);
+    
+    // Beat 3.0: G Major (ドミナント)
+    playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 3.0, 0.9);
+    playDrum(98, 3.0, 0.8);
+    
+    // Beat 4.0: C Major (一時解決)
+    playChord([N.E4, N.G4, N.C5], [N.C2, N.C3], 4.0, 0.7);
+    playDrum(80, 4.0, 0.7);
+    
+    // Beat 4.75: D Minor short
+    playChord([N.F4, N.A4, N.D5], [N.D2, N.D3], 4.75, 0.2);
+    
+    // Beat 5.0: G Major
+    playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 5.0, 0.9);
+    playDrum(98, 5.0, 0.8);
+    
+    // Beat 6.0: A Minor
+    playChord([N.A4, N.C5, N.E5, N.A5], [N.A2, N.A3], 6.0, 0.7);
+    playDrum(110, 6.0, 0.7);
+    
+    // Beat 6.75: F Major short
+    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 6.75, 0.2);
+    
+    // Beat 7.0: G Major
+    playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 7.0, 0.9);
+    playDrum(98, 7.0, 0.8);
+    
+    // --- 第2フレーズ：高揚感と更なる展開 ---
+    // Beat 8.0: C Major
+    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 8.0, 0.45);
+    playDrum(80, 8.0, 0.5);
+    
+    // Beat 8.5: C Major short
+    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 8.5, 0.2);
+    
+    // Beat 8.75: C Major short
+    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 8.75, 0.2);
+    
+    // Beat 9.0: F Major
+    playChord([N.F4, N.A4, N.C5, N.F5], [N.F2, N.F3], 9.0, 0.9);
+    playDrum(87, 9.0, 0.8);
+    
+    // Beat 10.0: G Major
+    playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 10.0, 0.7);
+    playDrum(98, 10.0, 0.7);
+    
+    // Beat 10.75: A Minor short
+    playChord([N.A4, N.C5, N.E5, N.A5], [N.A2, N.A3], 10.75, 0.2);
+    
+    // Beat 11.0: Bb Major (平坦VII度の映画音楽風で英雄的な和音！)
+    playChord([N.Bb4, N.D5, N.F5, N.Bb5], [N.Bb2, N.Bb3], 11.0, 0.9);
+    playDrum(116, 11.0, 0.8);
+    
+    // Beat 12.0: C Major
+    playChord([N.C4, N.E4, N.G4, N.C5], [N.C2, N.C3], 12.0, 0.7);
+    playDrum(80, 12.0, 0.7);
+    
+    // Beat 12.75: D Major (ダブルドミナント) short
+    playChord([N.D4, N.Fsharp4, N.A4, N.D5], [N.D2, N.D3], 12.75, 0.2);
+    
+    // Beat 13.0: G Major
+    playChord([N.G4, N.B4, N.D5, N.G5], [N.G2, N.G3], 13.0, 0.9);
+    playDrum(98, 13.0, 0.8);
+    
+    // --- 第3フレーズ：クライマックスへの架け橋と終止 ---
+    // Beat 14.0: Ab Major (平坦VI度 - ドラマチックな緊張)
+    playChord([N.Ab4, N.C5, N.Eb5, N.Ab5], [N.Ab2, N.Ab3], 14.0, 1.1);
+    playDrum(104, 14.0, 1.0);
+    
+    // Beat 15.2: Bb Major (平坦VII度 - 解決への最後の加速)
+    playChord([N.Bb4, N.D5, N.F5, N.Bb5], [N.Bb2, N.Bb3], 15.2, 1.1);
+    playDrum(116, 15.2, 1.0);
+    
+    // クライマックス直前の緊迫したティンパニロール (15.2拍から16.4拍まで連打)
+    for (let r = 0; r < 7; r++) {
+        const rollBeat = 15.2 + (r * 0.2);
+        playTimpani(116 - (r * 4), 0.18 * beatDur, rollBeat * beatDur);
+    }
+    
+    // Beat 16.5: 最後の圧倒的かつ壮大な C Major 解決和音！
+    const finalChord = [N.C3, N.G3, N.C4, N.E4, N.G4, N.C5, N.E5, N.G5, N.C6];
+    const finalBass = [N.C2, N.G2];
+    playChord(finalChord, finalBass, 16.5, 5.0);
+    
+    // ティンパニの大音量アタックとシンバルクラッシュの重なり
+    playDrum(80, 16.5, 1.5);
+    playCymbalCrash(4.5, 16.5 * beatDur);
 }
 
 function startBGM() {
     if (!state.audio.soundEnabled || !state.audio.ctx) return;
     
+    // 重複再生を防止するため、既存のタイマーがあればクリアする
+    if (state.audio.bgmInterval) {
+        clearInterval(state.audio.bgmInterval);
+    }
+    
     const ctx = state.audio.ctx;
     const progressions = [
-        [261.63, 329.63, 392.00, 523.25], 
-        [349.23, 440.00, 523.25, 698.46], 
-        [392.00, 493.88, 587.33, 783.99], 
-        [261.63, 329.63, 392.00, 523.25]  
+        [261.63, 329.63, 392.00, 523.25], // C Major
+        [349.23, 440.00, 523.25, 698.46], // F Major
+        [392.00, 493.88, 587.33, 783.99], // G Major
+        [261.63, 329.63, 392.00, 523.25]  // C Major
     ];
     
-    const melodyScale = [
-        523.25, 587.33, 659.25, 783.99, 880.00,
-        1046.50, 1174.66, 1318.51, 1567.98, 1760.00
+    // 可愛く明るい64ステップの長めのメロディパターン（フレーズを大幅に拡張）
+    const melodyPattern = [
+        659.25, 783.99, 1046.50, 0,      1174.66, 1318.51, 1046.50, 0,       // Measure 1 (C)
+        698.46, 880.00, 1046.50, 0,      1174.66, 1046.50, 880.00,  0,       // Measure 2 (F)
+        783.99, 987.77, 1174.66, 0,      1318.51, 1174.66, 987.77,  1174.66, // Measure 3 (G)
+        1046.50, 0,      783.99,  659.25, 523.25,  0,       0,       0,       // Measure 4 (C)
+        
+        1318.51, 1174.66, 1046.50, 783.99,  880.00,  1046.50, 783.99,  0,       // Measure 5 (C)
+        880.00,  1046.50, 1396.91, 1318.51, 1174.66, 1046.50, 880.00,  0,       // Measure 6 (F)
+        987.77,  1174.66, 1567.98, 1479.98, 1318.51, 1174.66, 987.77,  1174.66, // Measure 7 (G)
+        1046.50, 1567.98, 1318.51, 1046.50, 783.99,  659.25,  523.25,  0        // Measure 8 (C)
     ];
     
     let step = 0;
@@ -542,29 +897,28 @@ function startBGM() {
             } catch (e) {}
         }
         
-        if (Math.random() < 0.35 && beat !== 4 && beat !== 7) {
-            const noteFreq = melodyScale[Math.floor(Math.random() * melodyScale.length)];
-            
+        const noteFreq = melodyPattern[step % melodyPattern.length];
+        if (noteFreq > 0) {
             const osc = ctx.createOscillator();
             const gainNode = ctx.createGain();
             const filter = ctx.createBiquadFilter();
             
-            osc.type = 'sine'; 
+            osc.type = 'triangle'; // やわらかい響き
             osc.frequency.setValueAtTime(noteFreq, now);
             
             filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(3000, now);
+            filter.frequency.setValueAtTime(1500, now); // 温かみのあるオルゴールトーン
             
             gainNode.gain.setValueAtTime(0, now);
             gainNode.gain.linearRampToValueAtTime(0.015, now + 0.01);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.4); 
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.35); 
             
             osc.connect(filter);
             filter.connect(gainNode);
             gainNode.connect(ctx.destination);
             
             osc.start(now);
-            osc.stop(now + 0.5);
+            osc.stop(now + 0.45);
         }
         
         step++;
@@ -2025,6 +2379,7 @@ function initViewportControls() {
     state.viewport.y = 80;
     updateViewportTransform();
     
+    // マウスドラッグ移動
     viewport.addEventListener('mousedown', (e) => {
         if (e.target.closest('#hud, #spell-book, #faction-panel, #shop, #details-panel, #zoom-controls, #help-modal, #clear-modal, .btn, .btn-toggle-panel, .btn-toggle-shop')) return;
         state.viewport.isDragging = true;
@@ -2043,6 +2398,51 @@ function initViewportControls() {
         state.viewport.isDragging = false;
     });
     
+    // タッチ操作移動（スマホ対応ドラッグ ＆ ピンチズーム）
+    viewport.addEventListener('touchstart', (e) => {
+        if (e.target.closest('#hud, #spell-book, #faction-panel, #shop, #details-panel, #zoom-controls, #help-modal, #clear-modal, .btn, .btn-toggle-panel, .btn-toggle-shop')) return;
+        
+        if (e.touches.length === 1) {
+            state.viewport.isDragging = true;
+            const touch = e.touches[0];
+            state.viewport.startX = touch.clientX - state.viewport.x;
+            state.viewport.startY = touch.clientY - state.viewport.y;
+        } else if (e.touches.length === 2) {
+            state.viewport.isDragging = false;
+            state.viewport.isPinching = true;
+            state.viewport.initialTouchDist = Math.sqrt(
+                (e.touches[0].clientX - e.touches[1].clientX) ** 2 +
+                (e.touches[0].clientY - e.touches[1].clientY) ** 2
+            );
+            state.viewport.initialScale = state.viewport.scale;
+        }
+    }, { passive: true });
+    
+    window.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && state.viewport.isDragging) {
+            const touch = e.touches[0];
+            state.viewport.x = touch.clientX - state.viewport.startX;
+            state.viewport.y = touch.clientY - state.viewport.startY;
+            updateViewportTransform();
+        } else if (e.touches.length === 2 && state.viewport.isPinching) {
+            const dist = Math.sqrt(
+                (e.touches[0].clientX - e.touches[1].clientX) ** 2 +
+                (e.touches[0].clientY - e.touches[1].clientY) ** 2
+            );
+            if (state.viewport.initialTouchDist > 0) {
+                const scaleFactor = dist / state.viewport.initialTouchDist;
+                state.viewport.scale = Math.min(1.5, Math.max(0.6, state.viewport.initialScale * scaleFactor));
+                updateViewportTransform();
+            }
+        }
+    }, { passive: true });
+    
+    window.addEventListener('touchend', () => {
+        state.viewport.isDragging = false;
+        state.viewport.isPinching = false;
+    });
+    
+    // マウスホイール・ピンチホイール
     viewport.addEventListener('wheel', (e) => {
         e.preventDefault();
         
@@ -2134,18 +2534,31 @@ function initTooltip() {
 function initPanelCollapsible() {
     const spellPanel = document.getElementById('spell-book');
     const toggleSpellBtn = document.getElementById('btn-toggle-spell');
+    const factionPanel = document.getElementById('faction-panel');
+    const toggleFactionBtn = document.getElementById('btn-toggle-faction');
+    
     toggleSpellBtn.addEventListener('click', () => {
         playClickSound();
         const isCollapsed = spellPanel.classList.toggle('collapsed');
         toggleSpellBtn.textContent = isCollapsed ? '▶' : '◀';
+        
+        // モバイルで画面幅が狭い場合、反対側のパネルを自動的に閉じる
+        if (!isCollapsed && window.innerWidth < 768) {
+            factionPanel.classList.add('collapsed');
+            toggleFactionBtn.textContent = '◀';
+        }
     });
     
-    const factionPanel = document.getElementById('faction-panel');
-    const toggleFactionBtn = document.getElementById('btn-toggle-faction');
     toggleFactionBtn.addEventListener('click', () => {
         playClickSound();
         const isCollapsed = factionPanel.classList.toggle('collapsed');
         toggleFactionBtn.textContent = isCollapsed ? '◀' : '▶';
+        
+        // モバイルで画面幅が狭い場合、反対側のパネルを自動的に閉じる
+        if (!isCollapsed && window.innerWidth < 768) {
+            spellPanel.classList.add('collapsed');
+            toggleSpellBtn.textContent = '▶';
+        }
     });
     
     const shopPanel = document.getElementById('shop');
