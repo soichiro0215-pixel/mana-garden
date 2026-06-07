@@ -71,7 +71,10 @@
             <div id="game-board">
                 <!-- 浮遊島のベース（立体的な影） -->
                 <div id="island-base"></div>
-                <!-- グリッドセル、建物、キャラクターなどが動的に生成される -->
+                
+                <!-- 地形とオブジェクトのレイヤー分離 -->
+                <div id="tiles-layer"></div>
+                <div id="objects-layer"></div>
             </div>
         </main>
 
@@ -81,7 +84,7 @@
             <div class="panel-content">
                 <h3>魔法書 📖</h3>
                 <div class="spell-list">
-                    <button class="spell-btn" id="spell-rain" data-spell="rain" data-tip="🌧️ <b>成長の雨 (消費マナ: 20)</b><br>40秒間、全施設の資源生産速度が <b>2倍</b> になります。">
+                    <button class="spell-btn" id="spell-rain" data-spell="rain" data-tip="🌧️ <b>成長 of 雨 (消費マナ: 20)</b><br>40秒間、全施設の資源生産速度が <b>2倍</b> になります。">
                         <span class="spell-icon">🌧️</span>
                         <span class="spell-name">成長の雨</span>
                         <span class="spell-cost">✨20</span>
@@ -164,53 +167,63 @@
             </div>
         </aside>
 
-        <!-- 下部：建築ショップ -->
+        <!-- 下部：建築ショップ（折りたたみ可能） -->
         <footer id="shop" class="glass">
-            <div class="shop-tabs">
-                <button class="shop-tab active" data-tab="build">建築</button>
-                <button class="shop-tab" data-tab="road">道路・整地</button>
-            </div>
-            <div class="shop-items-container">
-                <!-- 建築物リスト -->
-                <div class="shop-tab-content active" id="tab-build">
-                    <button class="shop-item" data-build="house" data-tip="🏠 <b>民家 (🪙40 🪵20)</b><br>住民が住むかわいい家。<br>・最大住民数 <b>+2</b><br>・生産: <b>ゴールド +1.5/秒</b>">
-                        <div class="shop-item-preview"><img src="assets/house.png" alt="House"></div>
-                        <span class="shop-item-name">民家</span>
-                        <span class="shop-item-cost">🪙40 🪵20</span>
-                    </button>
-                    <button class="shop-item" data-build="lumberjack" data-tip="🪵 <b>木こり小屋 (🪙30 🪵10)</b><br>森の木を切るワークショップ。<br>・生産: <b>木材 +1.0/秒</b>">
-                        <div class="shop-item-preview"><img src="assets/lumberjack.png" alt="Lumberjack"></div>
-                        <span class="shop-item-name">木こり小屋</span>
-                        <span class="shop-item-cost">🪙30 🪵10</span>
-                    </button>
-                    <button class="shop-item" data-build="mana_tower" data-tip="🔮 <b>魔力塔 (🪙50 ✨15)</b><br>マナを集める魔術タワー。<br>・生産: <b>マナ +0.8/秒</b>">
-                        <div class="shop-item-preview"><img src="assets/mana_tower.png" alt="Mana Tower"></div>
-                        <span class="shop-item-name">魔力塔</span>
-                        <span class="shop-item-cost">🪙50 ✨15</span>
-                    </button>
-                    <button class="shop-item" data-build="tavern" data-tip="🍻 <b>冒険者の酒場 (🪙80 🪵50)</b><br>冒険者を街に招く場所。<br>・生産: <b>ゴールド +0.8/秒</b><br>・効果: パトロールする <b>魔導士</b> を召喚">
-                        <div class="shop-item-preview"><img src="assets/tavern.png" alt="Tavern"></div>
-                        <span class="shop-item-name">冒険者の酒場</span>
-                        <span class="shop-item-cost">🪙80 🪵50</span>
-                    </button>
-                    <button class="shop-item" data-build="barracks" data-tip="⚔️ <b>騎士団兵舎 (🪙100 🪵60 ✨20)</b><br>兵士が訓練する施設。<br>・効果: スライム退治が得意な <b>騎士</b> を召喚">
-                        <div class="shop-item-preview"><img src="assets/barracks.png" alt="Barracks"></div>
-                        <span class="shop-item-name">騎士団兵舎</span>
-                        <span class="shop-item-cost">🪙100 🪵60 ✨20</span>
-                    </button>
+            <button class="btn-toggle-shop" id="btn-toggle-shop" data-tip="建築メニューを開閉">▼</button>
+            <div class="shop-content">
+                <div class="shop-tabs">
+                    <button class="shop-tab active" data-tab="build">建築</button>
+                    <button class="shop-tab" data-tab="road">道路・整地</button>
                 </div>
-                <!-- 道路リスト -->
-                <div class="shop-tab-content" id="tab-road">
-                    <button class="shop-item-road" data-road="dirt" data-tip="🧱 <b>レンガ道 (🪙5)</b><br>地面をレンガで舗装します。<br>・効果: キャラクターの歩くスピードが上昇します。">
-                        <div class="shop-item-preview-tile"><img src="assets/dirt_path.png" alt="Dirt Path"></div>
-                        <span class="shop-item-name">レンガ道</span>
-                        <span class="shop-item-cost">🪙5</span>
-                    </button>
-                    <button class="shop-item-road" data-road="grass" data-tip="🌿 <b>自然の草地 (🪙0)</b><br>舗装した道路を取り除き、自然な草原に戻します。">
-                        <div class="shop-item-preview-tile"><img src="assets/grass_tile.png" alt="Grass Tile"></div>
-                        <span class="shop-item-name">草地に戻す</span>
-                        <span class="shop-item-cost">🪙0</span>
-                    </button>
+                <div class="shop-items-container">
+                    <!-- 建築物リスト -->
+                    <div class="shop-tab-content active" id="tab-build">
+                        <button class="shop-item" data-build="house" data-tip="🏠 <b>民家 (🪙40 🪵20)</b><br>住民が住むかわいい家。<br>・最大住民数 <b>+2</b><br>・生産: <b>ゴールド +1.5/秒</b>">
+                            <div class="shop-item-preview"><img src="assets/house.png" alt="House"></div>
+                            <span class="shop-item-name">民家</span>
+                            <span class="shop-item-cost">🪙40 🪵20</span>
+                        </button>
+                        <button class="shop-item" data-build="lumberjack" data-tip="🪵 <b>木こり小屋 (🪙30 🪵10)</b><br>森の木を切るワークショップ。<br>・生産: <b>木材 +1.0/秒</b>">
+                            <div class="shop-item-preview"><img src="assets/lumberjack.png" alt="Lumberjack"></div>
+                            <span class="shop-item-name">木こり小屋</span>
+                            <span class="shop-item-cost">🪙30 🪵10</span>
+                        </button>
+                        <button class="shop-item" data-build="mana_tower" data-tip="🔮 <b>魔力塔 (🪙50 ✨15)</b><br>マナを集める魔術タワー。<br>・生産: <b>マナ +0.8/秒</b>">
+                            <div class="shop-item-preview"><img src="assets/mana_tower.png" alt="Mana Tower"></div>
+                            <span class="shop-item-name">魔力塔</span>
+                            <span class="shop-item-cost">🪙50 ✨15</span>
+                        </button>
+                        <button class="shop-item" data-build="tavern" data-tip="🍻 <b>冒険者の酒場 (🪙80 🪵50)</b><br>冒険者を街に招く場所。<br>・生産: <b>ゴールド +0.8/秒</b><br>・効果: パトロールする <b>魔導士</b> を召喚">
+                            <div class="shop-item-preview"><img src="assets/tavern.png" alt="Tavern"></div>
+                            <span class="shop-item-name">酒場</span>
+                            <span class="shop-item-cost">🪙80 🪵50</span>
+                        </button>
+                        <button class="shop-item" data-build="barracks" data-tip="⚔️ <b>騎士団兵舎 (🪙100 🪵60 ✨20)</b><br>兵士が訓練する施設。<br>・効果: スライム退治が得意な <b>騎士</b> を召喚">
+                            <div class="shop-item-preview"><img src="assets/barracks.png" alt="Barracks"></div>
+                            <span class="shop-item-name">兵舎</span>
+                            <span class="shop-item-cost">🪙100 🪵60 ✨20</span>
+                        </button>
+                        
+                        <!-- 最終目標：世界樹 -->
+                        <button class="shop-item" data-build="world_tree" id="shop-item-world-tree" data-tip="🌳 <b>世界樹の復活 (🪙1000 🪵500 ✨300)</b><br>ゲームの最終目標です！王宮・ギルド・魔導書院の3大勢力と同盟関係（友好度80以上）になることで建設でき、開花するとゲームクリアになります。">
+                            <div class="shop-item-preview"><span style="font-size: 2.2rem;">🌳</span></div>
+                            <span class="shop-item-name" style="color: var(--color-mana);">世界樹</span>
+                            <span class="shop-item-cost">🪙1000 🪵500 ✨300</span>
+                        </button>
+                    </div>
+                    <!-- 道路リスト -->
+                    <div class="shop-tab-content" id="tab-road">
+                        <button class="shop-item-road" data-road="dirt" data-tip="🧱 <b>レンガ道 (🪙5)</b><br>地面をレンガで舗装します。<br>・効果: キャラクターの歩くスピードが <b>1.45倍</b> に上昇します。">
+                            <div class="shop-item-preview-tile"><img src="assets/dirt_path.png" alt="Dirt Path"></div>
+                            <span class="shop-item-name">レンガ道</span>
+                            <span class="shop-item-cost">🪙5</span>
+                        </button>
+                        <button class="shop-item-road" data-road="grass" data-tip="🌿 <b>自然の草地 (🪙0)</b><br>舗装した道路を取り除き、自然な草原に戻します。">
+                            <div class="shop-item-preview-tile"><img src="assets/grass_tile.png" alt="Grass Tile"></div>
+                            <span class="shop-item-name">草地に戻す</span>
+                            <span class="shop-item-cost">🪙0</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </footer>
@@ -243,34 +256,45 @@
                 </div>
                 <div class="help-body">
                     <div class="help-section">
-                        <h3>1. 基本ルールとクリア目標</h3>
-                        <p>あなたは空中を漂う魔法の浮遊島の領主です。ゴールド、木材、マナを生産する施設を建て、街を豊かに育てましょう。右側の<b>「王宮」「ギルド」「大魔導書院」</b>の3大勢力から届くクエストを完了して友好度を高めることで、特別な支援（ゴールド生産バフ、精鋭ユニット、魔法割引）を獲得できます。</p>
+                        <h3>🌟 ゲームの最終目標</h3>
+                        <p>このゲームのゴールは、空中都市の中央に伝説の<b>「世界樹 (🌳)」</b>を復活させ、大輪のマナの花を咲かせることです。<br>
+                        世界樹を植えるには、<b>ゴールド 1000、木材 500、マナ 300</b> が必要なだけでなく、3大勢力（王宮、ギルド、大魔導書院）と強固な絆を築いて<b>全員の友好度を 80 以上</b>にする必要があります！</p>
                     </div>
                     <div class="help-section">
-                        <h3>2. 冒険者とスライム (防衛)</h3>
-                        <p>街の周りからかわいい<b>スライム</b>が侵入してきます。放置すると住民の「幸福度」が下がり、ゴールドの生産性が低下します。<br>
-                        「酒場」や「兵舎」を建てることで、ちび騎士や魔導士が<b>男女ペア</b>で召喚されます。彼らは自動でパトロールし、スライムを発見すると戦って討伐します。討伐するとゴールドが手に入り、冒険者は経験値を得てレベルアップします！</p>
+                        <h3>1. 基本的な街づくり</h3>
+                        <p>民家（ゴールド・住民枠）、木こり小屋（木材）、魔力塔（マナ）などの建物を作り、資源を蓄えましょう。建物をクリックすると詳細パネルからレベルアップ（生産量アップ）や撤去を行えます。</p>
                     </div>
                     <div class="help-section">
-                        <h3>3. 開拓と整地</h3>
-                        <p>島には最初に<b>枯れ木 🪵、魔力岩 💎、雑草 🌿</b> などの障害物があります。クリックして少量の資源（ゴールド/マナ）を消費することで開拓でき、木材やゴールドを獲得できます。きれいに開拓して建物を建てましょう。</p>
+                        <h3>2. 冒険者とスライム (防衛 & ボイス)</h3>
+                        <p>時間の経過で境界線からプルプルした「スライム」が侵入してきます。放置すると住民の「幸福度」が下がってゴールドの生産性が低下します。<br>
+                        「酒場」や「兵舎」を建てることで、騎士や魔導士が<b>男女ペア</b>で召喚され、自動でスライムを退治してくれます。キャラクターたちは召喚されたり、攻撃したり、クリックされたりすると、<b>可愛い「ちびボイス」</b>で喋りかけてくれます！</p>
                     </div>
                     <div class="help-section">
-                        <h3>4. 魔法の使用</h3>
-                        <p>マナを消費して強力な魔法を唱えられます：<br>
-                        ・<b>成長の雨 🌧️</b>: 一定時間、全資源の生産速度が2倍になります。<br>
-                        ・<b>マナの奔流 🌀</b>: ゴールドをマナに瞬時に変換します。<br>
-                        ・<b>スライム召喚 💧</b>: 冒険者に討伐させてEXP/資源を稼ぐためスライムを呼びます。<br>
-                        ・<b>浄化の光 ☀️</b>: 選択したスライムや障害物を即座に消し去ります。</p>
+                        <h3>3. 地面の開拓</h3>
+                        <p>島には枯れ木 🪵 や魔力岩 🪨 が散らばっています。クリックして開拓すると、土地が綺麗になり、木材やマナを大量に獲得できます。</p>
                     </div>
                     <div class="help-section">
-                        <h3>5. 操作方法</h3>
-                        <p>・<b>画面のスクロール</b>: マウスドラッグ、またはホイール回転（スワイプ）でマップを自由にスクロールできます。<br>
-                        ・<b>拡大縮小（ズーム）</b>: 右上の「➕ / ➖」ボタン、または <b>Ctrl + ホイール回転</b> で調整できます。<br>
-                        ・<b>UI折りたたみ</b>: 左右パネルの「◀ / ▶」ボタンを押すとパネルを隠して、マップを広く見渡せます。</p>
+                        <h3>4. 便利な操作</h3>
+                        <p>・<b>マップの移動</b>: マウスドラッグまたはスクロールホイール（スワイプ）で行えます。<br>
+                        ・<b>ズーム（拡大縮小）</b>: 右上の「➕ / ➖」または <b>Ctrl + ホイール</b> で行えます。<br>
+                        ・<b>メニューを隠す</b>: 左右パネルの「◀ / ▶」、そして下部メニューの「▼」ボタンでUIを隠してマップを手前まで広く見渡せます。</p>
                     </div>
                 </div>
                 <button id="btn-help-ok" class="btn btn-primary">了解！</button>
+            </div>
+        </div>
+
+        <!-- ゲームクリアモーダル -->
+        <div id="clear-modal" class="screen-overlay hidden">
+            <div class="start-box glass clear-box">
+                <span style="font-size: 5rem; animation: logoFloat 3s ease-in-out infinite; display: inline-block;">🌳</span>
+                <h1 class="game-title victory-title">マナの古城に咲く世界樹</h1>
+                <p class="game-subtitle">🎉 ゲームクリア！ 🎉</p>
+                <div class="clear-stats glass" style="width: 100%; padding: 15px; margin: 10px 0;">
+                    <p style="margin: 8px 0;">⏱️ <b>開花達成時間:</b> <span id="clear-time" style="color: var(--color-mana); font-weight: bold;">0:00</span></p>
+                    <p style="margin: 8px 0;">👾 <b>退治したスライム:</b> <span id="clear-slimes" style="color: var(--color-happy); font-weight: bold;">0</span> 匹</p>
+                </div>
+                <button id="btn-restart" class="btn btn-primary btn-large">もう一度遊ぶ</button>
             </div>
         </div>
 
