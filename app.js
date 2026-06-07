@@ -2694,9 +2694,29 @@ function restartGame() {
 // ==========================================
 
 window.addEventListener('DOMContentLoaded', () => {
-    preloadAndProcessAssets();
     initTooltip();
     initPanelCollapsible();
+    
+    let preloaded = false;
+    const startPreload = () => {
+        if (preloaded) return;
+        preloaded = true;
+        
+        const btnStart = document.getElementById('btn-start');
+        if (btnStart) btnStart.textContent = "魔法の素材をロード中...";
+        
+        preloadAndProcessAssets();
+        
+        window.removeEventListener('click', startPreload);
+        window.removeEventListener('touchstart', startPreload);
+    };
+    
+    // 画面タップでロード開始（iOS等のロード制限対策）
+    window.addEventListener('click', startPreload);
+    window.addEventListener('touchstart', startPreload);
+    
+    // 通常ブラウザ用に100ms後に自動開始試行
+    setTimeout(startPreload, 100);
     
     // 初回の画面クリック・タッチでタイトル画面用BGMを再生
     const startTitleMusicOnInteraction = () => {

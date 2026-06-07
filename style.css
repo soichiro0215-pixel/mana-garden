@@ -567,6 +567,10 @@ body {
     width: 280px;
     padding: 16px;
     z-index: 90;
+    overflow: visible;
+}
+
+#faction-panel .panel-content {
     max-height: calc(100vh - 270px);
     overflow-y: auto;
 }
@@ -1297,7 +1301,11 @@ body {
         right: 10px;
         width: 200px;
         padding: 8px;
+        overflow: visible;
+    }
+    #faction-panel .panel-content {
         max-height: calc(100vh - 240px);
+        overflow-y: auto;
     }
     #zoom-controls {
         top: 70px;
@@ -1392,10 +1400,10 @@ body {
         left: -32px !important;
     }
     #spell-book.collapsed {
-        transform: translateX(-130px) !important;
+        transform: translateX(-100px) !important;
     }
     #faction-panel.collapsed {
-        transform: translateX(200px) !important;
+        transform: translateX(170px) !important;
     }
     .btn-toggle-shop {
         width: 70px !important;
@@ -1405,7 +1413,7 @@ body {
         border-radius: 10px 10px 0 0 !important;
     }
     #shop.collapsed {
-        transform: translateX(-50%) translateY(calc(100% - 40px)) !important;
+        transform: translateX(-50%) translateY(calc(100% - 55px)) !important;
     }
 }
 
