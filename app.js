@@ -234,6 +234,14 @@ async function preloadAndProcessAssets() {
     const btnStart = document.getElementById('btn-start');
     btnStart.textContent = "ゲームスタート";
     btnStart.disabled = false;
+    
+    // ロード完了時にかわいい声で「マナガーデン」と喋る
+    if (!state.audio.ctx) {
+        state.audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    setTimeout(() => {
+        sayManaGarden();
+    }, 200);
 }
 
 // ==========================================
@@ -297,6 +305,82 @@ function playSynthSound(freqs, duration, type = 'sine', volume = 0.1, delay = 0)
         osc.start(now);
         osc.stop(now + duration + 0.1);
     });
+}
+
+function sayManaGarden() {
+    if (!state.audio.soundEnabled || !state.audio.ctx) return;
+    const ctx = state.audio.ctx;
+    if (ctx.state === 'suspended') {
+        ctx.resume();
+    }
+    const now = ctx.currentTime;
+    
+    // 「マ・ナ・ガ・ー・デ・ン」を合成
+    let time = now;
+    
+    // 1. 「マ」 (Ma)
+    // M (humm)
+    playChibiSyllable(220, 300, 0.04, time, 'sine');
+    time += 0.03;
+    // A (vowel)
+    playChibiSyllable(880, 980, 0.12, time, 'triangle', 1000);
+    time += 0.14;
+    
+    // 2. 「ナ」 (Na)
+    // N (humm)
+    playChibiSyllable(240, 240, 0.03, time, 'sine');
+    time += 0.02;
+    // A (vowel)
+    playChibiSyllable(880, 930, 0.10, time, 'triangle', 1100);
+    time += 0.12;
+    
+    // 3. 「ガ」 (Ga)
+    // G (click)
+    playChibiSyllable(120, 80, 0.02, time, 'sawtooth');
+    time += 0.02;
+    // A (vowel)
+    playChibiSyllable(784, 830, 0.16, time, 'triangle', 1000);
+    time += 0.18;
+    
+    // 4. 「デ」 (De)
+    // D (click)
+    playChibiSyllable(400, 200, 0.02, time, 'sine');
+    time += 0.02;
+    // E (vowel)
+    playChibiSyllable(698, 730, 0.12, time, 'triangle', 1300);
+    time += 0.14;
+    
+    // 5. 「ン」 (N)
+    playChibiSyllable(330, 300, 0.18, time, 'sine', 500);
+}
+
+function playChibiSyllable(startFreq, endFreq, duration, startTime, oscType, filterFreq = null) {
+    const ctx = state.audio.ctx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.type = oscType;
+    osc.frequency.setValueAtTime(startFreq, startTime);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, startTime + duration);
+    
+    gain.gain.setValueAtTime(0.12, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+    
+    let lastNode = osc;
+    if (filterFreq) {
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(filterFreq, startTime);
+        filter.Q.setValueAtTime(4, startTime);
+        osc.connect(filter);
+        lastNode = filter;
+    }
+    
+    lastNode.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.05);
 }
 
 function playChibiVoice(voiceType, delay = 0) {
@@ -2719,16 +2803,22 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(startPreload, 100);
     
     // 初回の画面クリック・タッチでタイトル画面用BGMを再生
+    let titleBGMStarted = false;
     const startTitleMusicOnInteraction = () => {
         // スタート画面が既に閉じている場合はタイトル音楽を開始しない
         const startScreen = document.getElementById('start-screen');
         if (!startScreen || startScreen.classList.contains('hidden')) return;
 
-        if (!state.audio.ctx || state.audio.ctx.state === 'suspended') {
+        if (!titleBGMStarted) {
+            titleBGMStarted = true;
             startTitleBGM();
         }
-        window.removeEventListener('click', startTitleMusicOnInteraction);
-        window.removeEventListener('touchstart', startTitleMusicOnInteraction);
+        
+        // iOS Safari等の解除成功（running状態）時のみイベントリスナーを外す
+        if (state.audio.ctx && state.audio.ctx.state === 'running') {
+            window.removeEventListener('click', startTitleMusicOnInteraction);
+            window.removeEventListener('touchstart', startTitleMusicOnInteraction);
+        }
     };
     window.addEventListener('click', startTitleMusicOnInteraction);
     window.addEventListener('touchstart', startTitleMusicOnInteraction);
