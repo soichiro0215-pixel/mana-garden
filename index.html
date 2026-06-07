@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>マナ・ガーデン 〜箱庭魔法都市〜</title>
+    <!-- Google Fonts: Fredoka is incredibly cute and pop! -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&family=Murecho:wght@300..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- イントロ/スタート画面 -->
+    <div id="start-screen" class="screen-overlay">
+        <div class="start-box glass">
+            <img src="assets/game_logo.png" alt="Mana Garden Logo" class="game-logo-img">
+            <h1 class="game-title">マナ・ガーデン</h1>
+            <p class="game-subtitle">〜 剣と魔法の箱庭街づくり 〜</p>
+            <button id="btn-start" class="btn btn-primary btn-large">ゲームスタート</button>
+            <div class="start-instructions">
+                <p>💡 <b>遊び方:</b> 建物を作って資源を集め、冒険者を召喚してスライムを退治しましょう。3つの勢力のクエストをクリアして、伝説の魔法都市を育ててください！</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ゲームUIメイン -->
+    <div id="game-container" class="hidden">
+        <!-- 上部 HUD -->
+        <header id="hud" class="glass">
+            <div class="hud-item" id="hud-gold" title="ゴールド: 建物の建設やアップグレードに使用">
+                <span class="hud-icon">🪙</span>
+                <span class="hud-value">100</span>
+                <span class="hud-change" id="gold-change">+0/s</span>
+            </div>
+            <div class="hud-item" id="hud-wood" title="木材: 建物の建設やアップグレードに使用">
+                <span class="hud-icon">🪵</span>
+                <span class="hud-value">50</span>
+                <span class="hud-change" id="wood-change">+0/s</span>
+            </div>
+            <div class="hud-item" id="hud-mana" title="マナ: 魔法の詠唱や研究に使用">
+                <span class="hud-icon">✨</span>
+                <span class="hud-value">30</span>
+                <span class="hud-change" id="mana-change">+0/s</span>
+            </div>
+            <div class="hud-item" id="hud-pop" title="住民数 / 最大住民数">
+                <span class="hud-icon">👥</span>
+                <span class="hud-value">0 / 5</span>
+            </div>
+            <div class="hud-item" id="hud-happy" title="住民の幸福度: 生産性に影響します">
+                <span class="hud-icon">😊</span>
+                <span class="hud-value">100%</span>
+            </div>
+            <div class="hud-actions">
+                <button id="btn-sound" class="btn btn-icon" title="サウンドのON/OFF">🔊</button>
+            </div>
+        </header>
+
+        <!-- メインゲームエリア（ドラッグ＆ズーム可能） -->
+        <main id="viewport">
+            <div id="game-board">
+                <!-- グリッドセル、建物、キャラクターなどが動的に生成される -->
+            </div>
+        </main>
+
+        <!-- 左側：魔法の書（スペルブック） -->
+        <aside id="spell-book" class="glass">
+            <h3>魔法書 📖</h3>
+            <div class="spell-list">
+                <button class="spell-btn" id="spell-rain" data-spell="rain" title="「成長の雨」: 60秒間、全資源の生産速度が2倍になる。消費マナ: 20">
+                    <span class="spell-icon">🌧️</span>
+                    <span class="spell-name">成長の雨</span>
+                    <span class="spell-cost">✨20</span>
+                </button>
+                <button class="spell-btn" id="spell-surge" data-spell="surge" title="「マナの奔流」: 即座にマナ+50を獲得。消費ゴールド: 50">
+                    <span class="spell-icon">🌀</span>
+                    <span class="spell-name">マナの奔流</span>
+                    <span class="spell-cost">🪙50</span>
+                </button>
+                <button class="spell-btn" id="spell-slime" data-spell="slime" title="「スライム召喚」: 街にかわいいスライムを呼び出す（討伐時の資源稼ぎ用）。消費マナ: 10">
+                    <span class="spell-icon">💧</span>
+                    <span class="spell-name">スライム召喚</span>
+                    <span class="spell-cost">✨10</span>
+                </button>
+                <button class="spell-btn" id="spell-cleanse" data-spell="cleanse" title="「浄化の光」: 選択したタイルのスライムを即座に消滅させる。消費マナ: 15">
+                    <span class="spell-icon">☀️</span>
+                    <span class="spell-name">浄化の光</span>
+                    <span class="spell-cost">✨15</span>
+                </button>
+            </div>
+            <!-- アクティブ魔法のクールダウン・持続表示 -->
+            <div id="active-effects"></div>
+        </aside>
+
+        <!-- 右側：勢力クエスト（政治要素） -->
+        <aside id="faction-panel" class="glass">
+            <h3>政治・勢力 👑</h3>
+            <div class="faction-list">
+                <!-- 王宮 -->
+                <div class="faction-item" id="faction-royal">
+                    <div class="faction-header">
+                        <img src="assets/avatar_king.png" class="faction-avatar" alt="King">
+                        <div>
+                            <h4>王宮</h4>
+                            <div class="rep-bar-container"><div class="rep-bar" style="width: 50%"></div></div>
+                            <span class="rep-text">友好度: 中立 (50)</span>
+                        </div>
+                    </div>
+                    <div class="faction-quest" id="quest-royal">
+                        <p class="quest-desc">クエスト: 読込中...</p>
+                        <button class="btn btn-xs btn-quest" id="btn-quest-royal">報告する</button>
+                    </div>
+                </div>
+
+                <!-- 冒険者ギルド -->
+                <div class="faction-item" id="faction-guild">
+                    <div class="faction-header">
+                        <img src="assets/avatar_guildmaster.png" class="faction-avatar" alt="Guild Master">
+                        <div>
+                            <h4>冒険者ギルド</h4>
+                            <div class="rep-bar-container"><div class="rep-bar" style="width: 50%"></div></div>
+                            <span class="rep-text">友好度: 中立 (50)</span>
+                        </div>
+                    </div>
+                    <div class="faction-quest" id="quest-guild">
+                        <p class="quest-desc">クエスト: 読込中...</p>
+                        <button class="btn btn-xs btn-quest" id="btn-quest-guild">報告する</button>
+                    </div>
+                </div>
+
+                <!-- 大魔導書院 -->
+                <div class="faction-item" id="faction-archive">
+                    <div class="faction-header">
+                        <img src="assets/avatar_archmage.png" class="faction-avatar" alt="Archmage">
+                        <div>
+                            <h4>大魔導書院</h4>
+                            <div class="rep-bar-container"><div class="rep-bar" style="width: 50%"></div></div>
+                            <span class="rep-text">友好度: 中立 (50)</span>
+                        </div>
+                    </div>
+                    <div class="faction-quest" id="quest-archive">
+                        <p class="quest-desc">クエスト: 読込中...</p>
+                        <button class="btn btn-xs btn-quest" id="btn-quest-archive">報告する</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 下部：建築ショップ -->
+        <footer id="shop" class="glass">
+            <div class="shop-tabs">
+                <button class="shop-tab active" data-tab="build">建築</button>
+                <button class="shop-tab" data-tab="road">道路・整地</button>
+            </div>
+            <div class="shop-items-container">
+                <!-- 建築物リスト -->
+                <div class="shop-tab-content active" id="tab-build">
+                    <button class="shop-item" data-build="house" title="「民家」: 最大住民数+2。時間経過でゴールドを生産します。">
+                        <div class="shop-item-preview"><img src="assets/house.png" alt="House"></div>
+                        <span class="shop-item-name">民家</span>
+                        <span class="shop-item-cost">🪙40 🪵20</span>
+                    </button>
+                    <button class="shop-item" data-build="lumberjack" title="「木こり小屋」: 周囲から木材を切り出します。">
+                        <div class="shop-item-preview"><img src="assets/lumberjack.png" alt="Lumberjack"></div>
+                        <span class="shop-item-name">木こり小屋</span>
+                        <span class="shop-item-cost">🪙30 🪵10</span>
+                    </button>
+                    <button class="shop-item" data-build="mana_tower" title="「魔力塔」: マナを空気中から集めて蓄積します。">
+                        <div class="shop-item-preview"><img src="assets/mana_tower.png" alt="Mana Tower"></div>
+                        <span class="shop-item-name">魔力塔</span>
+                        <span class="shop-item-cost">🪙50 ✨15</span>
+                    </button>
+                    <button class="shop-item" data-build="tavern" title="「冒険者の酒場」: 冒険者を街に呼び込みます。ゴールドも少し生産。">
+                        <div class="shop-item-preview"><img src="assets/tavern.png" alt="Tavern"></div>
+                        <span class="shop-item-name">冒険者の酒場</span>
+                        <span class="shop-item-cost">🪙80 🪵50</span>
+                    </button>
+                    <button class="shop-item" data-build="barracks" title="「騎士団兵舎」: 街を巡回する兵士（戦士）を配置します。スライム退治が得意。">
+                        <div class="shop-item-preview"><img src="assets/barracks.png" alt="Barracks"></div>
+                        <span class="shop-item-name">騎士団兵舎</span>
+                        <span class="shop-item-cost">🪙100 🪵60 ✨20</span>
+                    </button>
+                </div>
+                <!-- 道路リスト -->
+                <div class="shop-tab-content" id="tab-road">
+                    <button class="shop-item-road" data-road="dirt" title="「レンガ道」: キャラクターの移動速度が上がります。">
+                        <div class="shop-item-preview-tile"><img src="assets/dirt_path.png" alt="Dirt Path"></div>
+                        <span class="shop-item-name">レンガ道</span>
+                        <span class="shop-item-cost">🪙5</span>
+                    </button>
+                    <button class="shop-item-road" data-road="grass" title="「草地に戻す」: タイルを自然な草地に戻します。">
+                        <div class="shop-item-preview-tile"><img src="assets/grass_tile.png" alt="Grass Tile"></div>
+                        <span class="shop-item-name">自然の草地</span>
+                        <span class="shop-item-cost">🪙0</span>
+                    </button>
+                </div>
+            </div>
+        </footer>
+
+        <!-- 詳細情報ポップアップパネル -->
+        <div id="details-panel" class="glass hidden">
+            <div class="details-header">
+                <h3 id="details-title">建物名</h3>
+                <button id="btn-close-details" class="btn-close">&times;</button>
+            </div>
+            <div class="details-body">
+                <p id="details-desc">説明</p>
+                <div class="details-stats">
+                    <div class="stat-row"><span>レベル:</span> <b id="details-level">1</b></div>
+                    <div class="stat-row"><span>生産:</span> <b id="details-production">-</b></div>
+                </div>
+            </div>
+            <div class="details-actions">
+                <button id="btn-upgrade" class="btn btn-primary">アップグレード (🪙50)</button>
+                <button id="btn-demolish" class="btn btn-danger">撤去</button>
+            </div>
+        </div>
+
+        <!-- 浮遊する通知メッセージ -->
+        <div id="toast-container"></div>
+    </div>
+
+    <!-- ゲームロジック -->
+    <script src="app.js"></script>
+</body>
+</html>
