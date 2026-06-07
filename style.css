@@ -82,6 +82,12 @@ body {
     gap: 8px;
     color: white;
 }
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
 
 .btn-primary {
     background: linear-gradient(135deg, #a55eea, #706fd3);
@@ -1371,6 +1377,35 @@ body {
         bottom: 120px;
         left: 50%;
         transform: translateX(-50%);
+    }
+    
+    /* モバイル用の開閉ボタンのサイズ拡張と折りたたみ位置調整 */
+    .btn-toggle-panel {
+        width: 32px !important;
+        height: 65px !important;
+        font-size: 1.1rem !important;
+    }
+    #btn-toggle-spell {
+        right: -32px !important;
+    }
+    #btn-toggle-faction {
+        left: -32px !important;
+    }
+    #spell-book.collapsed {
+        transform: translateX(-130px) !important;
+    }
+    #faction-panel.collapsed {
+        transform: translateX(200px) !important;
+    }
+    .btn-toggle-shop {
+        width: 70px !important;
+        height: 35px !important;
+        top: -35px !important;
+        font-size: 1.1rem !important;
+        border-radius: 10px 10px 0 0 !important;
+    }
+    #shop.collapsed {
+        transform: translateX(-50%) translateY(calc(100% - 40px)) !important;
     }
 }
 

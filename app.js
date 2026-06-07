@@ -151,10 +151,13 @@ const ASSET_FILES = {
 const ASSET_VERSION = 19;
 
 function cropAndMakeTransparent(imgSrc) {
+    if (window.location.protocol === 'file:') {
+        return Promise.resolve(imgSrc); // ローカルファイル実行時はCORSエラーとパス解釈バグを防ぐため透過処理をスキップ
+    }
     const cacheBustedSrc = imgSrc + "?v=" + ASSET_VERSION;
     return new Promise((resolve) => {
         const img = new Image();
-        img.crossOrigin = "anonymous";
+        // same-originのためcrossOriginの指定を削除してキャッシュ起因のCORSミスマッチバグを防止
         img.onload = () => {
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
@@ -228,7 +231,9 @@ async function preloadAndProcessAssets() {
         state.assetsProcessed[key] = transparentCroppedSrc;
     }
     showToast("ロード完了！", "success");
-    document.getElementById('btn-start').disabled = false;
+    const btnStart = document.getElementById('btn-start');
+    btnStart.textContent = "ゲームスタート";
+    btnStart.disabled = false;
 }
 
 // ==========================================
@@ -2581,6 +2586,18 @@ function initPanelCollapsible() {
     const toggleSpellBtn = document.getElementById('btn-toggle-spell');
     const factionPanel = document.getElementById('faction-panel');
     const toggleFactionBtn = document.getElementById('btn-toggle-faction');
+    const shopPanel = document.getElementById('shop');
+    const toggleShopBtn = document.getElementById('btn-toggle-shop');
+    
+    // モバイル画面（幅768px未満）の場合は、マップが見えなくなるのを防ぐために初期状態で折りたたむ
+    if (window.innerWidth < 768) {
+        spellPanel.classList.add('collapsed');
+        toggleSpellBtn.textContent = '▶';
+        factionPanel.classList.add('collapsed');
+        toggleFactionBtn.textContent = '◀';
+        shopPanel.classList.add('collapsed');
+        toggleShopBtn.textContent = '▲';
+    }
     
     toggleSpellBtn.addEventListener('click', () => {
         playClickSound();
@@ -2606,8 +2623,6 @@ function initPanelCollapsible() {
         }
     });
     
-    const shopPanel = document.getElementById('shop');
-    const toggleShopBtn = document.getElementById('btn-toggle-shop');
     toggleShopBtn.addEventListener('click', () => {
         playClickSound();
         const isCollapsed = shopPanel.classList.toggle('collapsed');
