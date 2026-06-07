@@ -329,7 +329,7 @@ body {
     background-position: center bottom;
     pointer-events: none;
     z-index: 10;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scaleX(var(--scale-x, 1));
     transition: left 0.5s linear, top 0.5s linear;
 }
 
@@ -1104,6 +1104,34 @@ body {
     filter: grayscale(0.6) sepia(0.1) brightness(0.85) contrast(1.1) drop-shadow(0 4px 12px rgba(255, 71, 126, 0.8));
     transform: translateX(-50%) scale(1.05) translateY(-2px);
 }
+
+/* --- Local Fallback multiply mode to remove white boxes offline --- */
+.local-fallback-mode .building-sprite,
+.local-fallback-mode .character-sprite {
+    mix-blend-mode: multiply;
+}
+
+.local-fallback-mode .tile {
+    /* Grass tiles don't need multiply because they are the background, but let's multiply dirt paths */
+}
+.local-fallback-mode .tile[id*="dirt"] {
+    mix-blend-mode: multiply;
+}
+
+/* --- Walk Waddle Animation --- */
+@keyframes walkWaddle {
+    0%, 100% { 
+        transform: translate(-50%, -50%) scaleX(var(--scale-x, 1)) rotate(0deg) translateY(0); 
+    }
+    50% { 
+        transform: translate(-50%, -50%) scaleX(var(--scale-x, 1)) rotate(-4deg) translateY(-4px); 
+    }
+}
+
+.character-sprite.walking {
+    animation: walkWaddle 0.4s infinite ease-in-out;
+}
+
 
 /* --- Separation of Ground Tiles and Objects Layer --- */
 #tiles-layer, #objects-layer {

@@ -60,7 +60,7 @@ const BUILDING_TYPES = {
         cost: { gold: 1000, wood: 500, mana: 300 },
         popMaxAdd: 0,
         production: { gold: 0, wood: 0, mana: 0 },
-        asset: 'assets/town_hall.png', // 初期表示にギルド本部の素材を流用
+        asset: 'assets/town_hall.png',
         upgradeCostMultiplier: 1.0
     }
 };
@@ -138,7 +138,6 @@ const ASSET_FILES = {
 // 1. 画像アセット透過 ＆ 自動余白クロップ処理
 // ==========================================
 
-// 画像の白色背景を透明にし、さらに不要な透明余白をタイトに切り抜く
 function cropAndMakeTransparent(imgSrc) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -159,7 +158,6 @@ function cropAndMakeTransparent(imgSrc) {
                 let maxX = 0;
                 let maxY = 0;
                 
-                // 白色に近いピクセルを透明化しつつ、描画コンテンツの境界（バウンディングボックス）を計測
                 for (let y = 0; y < canvas.height; y++) {
                     for (let x = 0; x < canvas.width; x++) {
                         const idx = (y * canvas.width + x) * 4;
@@ -167,11 +165,9 @@ function cropAndMakeTransparent(imgSrc) {
                         const g = data[idx+1];
                         const b = data[idx+2];
                         
-                        // 白ピクセル判定
                         if (r > 230 && g > 230 && b > 230) {
                             data[idx+3] = 0; // 透明化
                         } else {
-                            // 可視ピクセルの最小最大座標を更新
                             if (x < minX) minX = x;
                             if (x > maxX) maxX = x;
                             if (y < minY) minY = y;
@@ -180,14 +176,12 @@ function cropAndMakeTransparent(imgSrc) {
                     }
                 }
                 
-                // もし中身が完全に白かった場合の安全弁
                 if (maxX < minX || maxY < minY) {
                     ctx.putImageData(imgData, 0, 0);
                     resolve(canvas.toDataURL());
                     return;
                 }
                 
-                // タイトに切り抜いた新しいキャンバスを作成
                 const cropWidth = (maxX - minX) + 1;
                 const cropHeight = (maxY - minY) + 1;
                 
@@ -196,13 +190,13 @@ function cropAndMakeTransparent(imgSrc) {
                 cropCanvas.height = cropHeight;
                 const cropCtx = cropCanvas.getContext('2d');
                 
-                // 一旦透過画像データをもとのキャンバスに戻し、そこからトリミング転送
                 ctx.putImageData(imgData, 0, 0);
                 cropCtx.drawImage(canvas, minX, minY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
                 
                 resolve(cropCanvas.toDataURL());
             } catch (e) {
-                console.warn("CORS/ImageData error in crop. Falling back.");
+                console.warn("CORS error in crop. Active local-fallback-mode for offline play.");
+                document.body.classList.add('local-fallback-mode'); // ローカル実行時の白枠をmix-blendで消す
                 resolve(imgSrc);
             }
         };
@@ -213,7 +207,6 @@ function cropAndMakeTransparent(imgSrc) {
     });
 }
 
-// すべてのアセットを一括クロップ透過処理
 async function preloadAndProcessAssets() {
     showToast("魔法の素材をロード中...", "info");
     const keys = Object.keys(ASSET_FILES);
@@ -278,61 +271,47 @@ function playSynthSound(freqs, duration, type = 'sine', volume = 0.1, delay = 0)
     });
 }
 
-// キャラクターのちびボイス音声合成 (可愛らしいポップトーン)
 function playChibiVoice(voiceType) {
     if (!state.audio.soundEnabled || !state.audio.ctx) return;
-    
     const ctx = state.audio.ctx;
     const now = ctx.currentTime;
     
     if (voiceType === 'spawn') {
-        // 「ハロー！」風の元気な高い2音挨拶
-        playSynthSound([880.00], 0.08, 'triangle', 0.08, 0); // A5
-        playSynthSound([1174.66], 0.12, 'triangle', 0.08, 0.06); // D6
+        playSynthSound([880.00], 0.08, 'triangle', 0.08, 0); 
+        playSynthSound([1174.66], 0.12, 'triangle', 0.08, 0.06); 
     } 
     else if (voiceType === 'attack') {
-        // 「えいっ！」風の短い鋭い掛け声 (ノイズ+急激な下向ピッチスイープ)
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(800, now);
-        osc.frequency.exponentialRampToValueAtTime(300, now + 0.08); // 急降下
-        
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.08); 
         gain.gain.setValueAtTime(0.08, now);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-        
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(now);
         osc.stop(now + 0.1);
     } 
     else if (voiceType === 'hurt') {
-        // スライムの「ぴくっ！」という高音ぷにスクイーク
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        
         osc.type = 'sine';
-        // FM的なビブラート効果を短時間で加算して「ぷに」感を表現
         osc.frequency.setValueAtTime(500, now);
-        osc.frequency.linearRampToValueAtTime(1200, now + 0.05); // 急上昇
-        
+        osc.frequency.linearRampToValueAtTime(1200, now + 0.05); 
         gain.gain.setValueAtTime(0.06, now);
         gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
-        
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start(now);
         osc.stop(now + 0.1);
     } 
     else if (voiceType === 'click') {
-        // 一般市民の「ルルッ！」という人懐っこい二重ピコ音
-        playSynthSound([1046.50], 0.05, 'sine', 0.08, 0); // C6
-        playSynthSound([1318.51], 0.06, 'sine', 0.08, 0.04); // E6
+        playSynthSound([1046.50], 0.05, 'sine', 0.08, 0); 
+        playSynthSound([1318.51], 0.06, 'sine', 0.08, 0.04); 
     }
 }
 
-// 8bit風の上昇音 (建築)
 function playBuildSound() {
     const baseFreq = 261.63;
     const dur = 0.12;
@@ -342,7 +321,6 @@ function playBuildSound() {
     playSynthSound([baseFreq * 2.0], dur, 'triangle', 0.12, 0.18);
 }
 
-// 短いクリック音
 function playClickSound() {
     playSynthSound([659.25], 0.06, 'sine', 0.12);
 }
@@ -353,7 +331,7 @@ function playSlimeDeathSound() {
     playSynthSound([523.25], 0.12, 'sine', 0.1, 0.06);
 }
 
-// クエスト完了：透き通るようなFMベル和音 (FMシンセ)
+// クエスト完了チャイム
 function playQuestClearSound() {
     if (!state.audio.soundEnabled || !state.audio.ctx) return;
     
@@ -402,7 +380,6 @@ function playQuestClearSound() {
     });
 }
 
-// 魔法発動音
 function playMagicCastSound() {
     if (!state.audio.soundEnabled || !state.audio.ctx) return;
     const ctx = state.audio.ctx;
@@ -415,13 +392,11 @@ function playMagicCastSound() {
     }
 }
 
-// ゲームクリアファンファーレ (豪華なブラス＆チャイム風)
 function playVictoryFanfare() {
     if (!state.audio.soundEnabled || !state.audio.ctx) return;
     const ctx = state.audio.ctx;
     const now = ctx.currentTime;
     
-    // ファンファーレのメロディ: C5 -> E5 -> G5 -> C6 -> E6 -> G6
     const melody = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
     melody.forEach((freq, idx) => {
         const d = idx * 0.12;
@@ -442,7 +417,6 @@ function playVictoryFanfare() {
         osc.stop(t + 2.0);
     });
     
-    // 背景の豊かなコードバッキング (C Major)
     const chords = [261.63, 329.63, 392.00];
     chords.forEach((freq) => {
         const osc = ctx.createOscillator();
@@ -461,21 +435,17 @@ function playVictoryFanfare() {
     });
 }
 
-// 可愛く明るいトイボックス風BGM自動生成ループ (C -> F -> G -> C 進行)
 function startBGM() {
     if (!state.audio.soundEnabled || !state.audio.ctx) return;
     
     const ctx = state.audio.ctx;
-    
-    // 可愛く明るいコード進行 (全体を1オクターブ上げ、メジャー進行に変更)
     const progressions = [
-        [261.63, 329.63, 392.00, 523.25], // C4, E4, G4, C5 (C)
-        [349.23, 440.00, 523.25, 698.46], // F4, A4, C5, F5 (F)
-        [392.00, 493.88, 587.33, 783.99], // G4, B4, D5, G5 (G)
-        [261.63, 329.63, 392.00, 523.25]  // C4, E4, G4, C5 (C)
+        [261.63, 329.63, 392.00, 523.25], 
+        [349.23, 440.00, 523.25, 698.46], 
+        [392.00, 493.88, 587.33, 783.99], 
+        [261.63, 329.63, 392.00, 523.25]  
     ];
     
-    // 可愛いトイベル用の明るい五音音階 (C5, D5, E5, G5, A5, C6)
     const melodyScale = [
         523.25, 587.33, 659.25, 783.99, 880.00,
         1046.50, 1174.66, 1318.51, 1567.98, 1760.00
@@ -492,23 +462,20 @@ function startBGM() {
         const chordIdx = measure % progressions.length;
         const chord = progressions[chordIdx];
         
-        // ------------------------------------
-        // 1. コードパッド (可愛らしいピコピコ白玉オルゴール)
-        // ------------------------------------
         if (beat === 0) {
             chord.forEach((freq) => {
                 const osc = ctx.createOscillator();
                 const gainNode = ctx.createGain();
                 const filter = ctx.createBiquadFilter();
                 
-                osc.type = 'triangle'; // やわらかく弾むトーン
+                osc.type = 'triangle'; 
                 osc.frequency.setValueAtTime(freq, now);
                 
                 filter.type = 'lowpass';
-                filter.frequency.setValueAtTime(1200, now); // 少し明るめにフィルターを開く
+                filter.frequency.setValueAtTime(1200, now); 
                 
                 gainNode.gain.setValueAtTime(0, now);
-                gainNode.gain.linearRampToValueAtTime(0.012, now + 0.8); // アタックを速くしてピコピコ感を出す
+                gainNode.gain.linearRampToValueAtTime(0.012, now + 0.8); 
                 gainNode.gain.setValueAtTime(0.012, now + 2.0);
                 gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 2.9);
                 
@@ -520,12 +487,11 @@ function startBGM() {
                 osc.stop(now + 3.0);
             });
             
-            // 明るいルートベース音
             const bassOsc = ctx.createOscillator();
             const bassGain = ctx.createGain();
             
             bassOsc.type = 'sine';
-            bassOsc.frequency.setValueAtTime(chord[0] / 2, now); // ルート音を低域で支える
+            bassOsc.frequency.setValueAtTime(chord[0] / 2, now); 
             
             bassGain.gain.setValueAtTime(0, now);
             bassGain.gain.linearRampToValueAtTime(0.02, now + 0.4);
@@ -538,9 +504,6 @@ function startBGM() {
             bassOsc.stop(now + 3.0);
         }
         
-        // ------------------------------------
-        // 2. ブラシノイズリズム (2拍・6拍目)
-        // ------------------------------------
         if (beat === 2 || beat === 6) {
             try {
                 const bufferSize = ctx.sampleRate * 0.05;
@@ -555,7 +518,7 @@ function startBGM() {
                 
                 const filter = ctx.createBiquadFilter();
                 filter.type = 'bandpass';
-                filter.frequency.value = 1600; // 高めにしてシャカシャカ可愛く
+                filter.frequency.value = 1600; 
                 
                 const gain = ctx.createGain();
                 gain.gain.setValueAtTime(0.005, now);
@@ -569,10 +532,6 @@ function startBGM() {
             } catch (e) {}
         }
         
-        // ------------------------------------
-        // 3. ランダムポップメロディ (キラキラベル音)
-        // ------------------------------------
-        // 35%の確率で、おもちゃの鉄琴のような明るいベルメロディを自動即興演奏
         if (Math.random() < 0.35 && beat !== 4 && beat !== 7) {
             const noteFreq = melodyScale[Math.floor(Math.random() * melodyScale.length)];
             
@@ -580,7 +539,7 @@ function startBGM() {
             const gainNode = ctx.createGain();
             const filter = ctx.createBiquadFilter();
             
-            osc.type = 'sine'; // クリアなサイン波
+            osc.type = 'sine'; 
             osc.frequency.setValueAtTime(noteFreq, now);
             
             filter.type = 'lowpass';
@@ -588,7 +547,7 @@ function startBGM() {
             
             gainNode.gain.setValueAtTime(0, now);
             gainNode.gain.linearRampToValueAtTime(0.015, now + 0.01);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.4); // 短くカットして可愛い音に
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.4); 
             
             osc.connect(filter);
             filter.connect(gainNode);
@@ -599,7 +558,7 @@ function startBGM() {
         }
         
         step++;
-    }, 350); // テンポを少し速めて軽快に (350ms)
+    }, 350); 
 }
 
 // ==========================================
@@ -607,7 +566,6 @@ function startBGM() {
 // ==========================================
 
 function initGame() {
-    // レイヤーコンテナの取得と初期化
     const tilesLayer = document.getElementById('tiles-layer');
     const objectsLayer = document.getElementById('objects-layer');
     
@@ -636,13 +594,31 @@ function initGame() {
         }
     }
     
-    // 障害物の初期配置 (枯れ木、魔力岩、古代の廃墟をランダムに計6個配置)
+    // 最初からレンガの道路（街路）を配置する (十字路デザイン)
+    const initialRoads = [
+        {c: 1, r: 3}, {c: 2, r: 3}, {c: 3, r: 3}, {c: 4, r: 3}, {c: 5, r: 3}, {c: 6, r: 3}, // 横の大通り
+        {c: 3, r: 1}, {c: 3, r: 2}, {c: 3, r: 4}, {c: 3, r: 5}, {c: 3, r: 6}  // 縦の大通り
+    ];
+    initialRoads.forEach(coord => {
+        const cell = state.grid[coord.r][coord.c];
+        cell.tileType = 'dirt';
+        
+        const tile = document.getElementById(`tile-${coord.c}-${coord.r}`);
+        if (tile) {
+            tile.style.backgroundImage = `url('${state.assetsProcessed.dirt}')`;
+            tile.dataset.tip = `🧱 <b>レンガ道 (${coord.c}, ${coord.r})</b><br>街の道路です。<br>・歩くスピードが <b>1.45倍</b> になります。`;
+        }
+    });
+    
+    // 障害物の初期配置 (道路の上は避ける)
     let obstacleCount = 0;
     while (obstacleCount < 6) {
         const r = Math.floor(Math.random() * GRID_SIZE);
         const c = Math.floor(Math.random() * GRID_SIZE);
         
-        if ((r === 3 && c === 3) || (r === 4 && c === 4)) continue;
+        const isRoad = initialRoads.some(coord => coord.c === c && coord.r === r);
+        if (isRoad) continue;
+        if ((r === 2 && c === 2) || (r === 4 && c === 4) || (r === 3 && c === 5)) continue; // 初期建物予定地を避ける
         if (state.grid[r][c].obstacle) continue;
         
         const types = ['tree', 'rock', 'ruin'];
@@ -653,9 +629,10 @@ function initGame() {
         obstacleCount++;
     }
     
-    // 初期建物の配置
-    placeBuildingAt(3, 3, 'house', true); 
-    placeBuildingAt(4, 4, 'lumberjack', true); 
+    // 最初から建物をいくつか配置して町らしくしておく
+    placeBuildingAt(2, 2, 'house', true); // コテージ
+    placeBuildingAt(4, 4, 'lumberjack', true); // 木こり小屋
+    placeBuildingAt(3, 5, 'tavern', true); // 冒険者の酒場（初期配置により自動的に最初の魔導士が召喚される）
     
     updateHUD();
     
@@ -680,7 +657,6 @@ function initGame() {
     }
 }
 
-// セル座標をアイソメトリックピクセル座標に変換
 function getIsoCoords(col, row) {
     const offset_x = 600 - (BASE_TILE_WIDTH / 2);
     const offset_y = 200;
@@ -690,7 +666,6 @@ function getIsoCoords(col, row) {
     return { x, y };
 }
 
-// タイルDOMの作成（地形レイヤーに追加）
 function createTileDOM(col, row) {
     const tilesLayer = document.getElementById('tiles-layer');
     const { x, y } = getIsoCoords(col, row);
@@ -715,7 +690,6 @@ function createTileDOM(col, row) {
     tilesLayer.appendChild(tileContainer);
 }
 
-// 障害物DOMの作成（オブジェクトレイヤーに追加）
 function createObstacleDOM(col, row, type) {
     const objectsLayer = document.getElementById('objects-layer');
     const { x, y } = getIsoCoords(col, row);
@@ -724,7 +698,6 @@ function createObstacleDOM(col, row, type) {
     if (type === 'ruin') {
         sprite.className = `building-sprite obstacle-ruin`;
         sprite.style.backgroundImage = `url('${state.assetsProcessed.house}')`;
-        // オブジェクトレイヤー用の絶対配置 (タイルの真上に重ねる)
         sprite.style.left = `${x}px`;
         sprite.style.top = `${y - 35}px`;
         sprite.style.width = '120px';
@@ -737,9 +710,8 @@ function createObstacleDOM(col, row, type) {
         sprite.style.transform = 'translate(-50%, -65%)';
     }
     sprite.id = `obstacle-sprite-${col}-${row}`;
-    sprite.style.zIndex = (col + row) * 10 + 2; // Zインデックスを細かく設定
+    sprite.style.zIndex = (col + row) * 10 + 2; 
     
-    // クリックを下に透過させずに障害物の選択ができるように
     sprite.style.pointerEvents = 'auto';
     sprite.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -767,26 +739,22 @@ function createObstacleDOM(col, row, type) {
 function handleTileClick(col, row) {
     const cell = state.grid[row][col];
     
-    // ちびクリック声
     if (cell.obstacle || cell.building) {
         playChibiVoice('click');
     } else {
         playClickSound();
     }
     
-    // 魔法ターゲット選択中
     if (state.selectedTool && state.selectedTool.startsWith('spell_')) {
         castTargetSpell(col, row, state.selectedTool.replace('spell_', ''));
         return;
     }
     
-    // 障害物がある場合
     if (cell.obstacle) {
         selectCell(col, row);
         return;
     }
     
-    // 建築ツール選択中
     if (state.selectedTool) {
         if (state.selectedTool.startsWith('road_')) {
             layRoad(col, row, state.selectedTool.replace('road_', ''));
@@ -846,7 +814,7 @@ function showDetailsPanel(cell) {
             btnDemolish.onclick = () => clearObstacle(cell.col, cell.row, { gold: 30 }, { mana: 15 });
         } else if (type === 'ruin') {
             title.textContent = "古代の廃墟 🏚️";
-            desc.textContent = "古代魔法都市の遺物です。マナを使って浄化するとゴールドが手に入ります。";
+            desc.textContent = "古代魔法都市의遺物です。マナを使って浄化するとゴールドが手に入ります。";
             level.textContent = "なし";
             prod.textContent = "浄化報酬: 🪙+60";
             btnDemolish.textContent = "浄化する (✨20)";
@@ -869,7 +837,6 @@ function showDetailsPanel(cell) {
     title.textContent = `${config.name} (Lv.${cell.building.level})`;
     desc.textContent = config.description;
     
-    // 世界樹はレベルアップも撤去も不可
     if (buildType === 'world_tree') {
         level.textContent = "MAX";
         prod.textContent = "マナの花が咲き誇っています 🌳✨";
@@ -952,7 +919,6 @@ function clearObstacle(col, row, cost, reward) {
     updateHUD();
 }
 
-// 建物をオブジェクトレイヤー上に配置する
 function placeBuildingAt(col, row, type, free = false) {
     const cell = state.grid[row][col];
     
@@ -961,7 +927,6 @@ function placeBuildingAt(col, row, type, free = false) {
         return;
     }
     
-    // 世界樹の建設前チェック (同盟条件)
     if (type === 'world_tree' && !free) {
         const canBuildTree = state.factions.royal.rep >= 80 && 
                              state.factions.guild.rep >= 80 && 
@@ -996,7 +961,6 @@ function placeBuildingAt(col, row, type, free = false) {
         lastProduceTime: Date.now()
     };
     
-    // オブジェクトレイヤーにDOM追加
     const objectsLayer = document.getElementById('objects-layer');
     const { x, y } = getIsoCoords(col, row);
     
@@ -1005,14 +969,12 @@ function placeBuildingAt(col, row, type, free = false) {
     sprite.style.zIndex = (col + row) * 10 + 2;
     sprite.style.pointerEvents = 'auto';
     
-    // クリックされたら建物の詳細を表示できるようにイベント伝播
     sprite.addEventListener('click', (e) => {
         e.stopPropagation();
         handleTileClick(col, row);
     });
     
     if (type === 'world_tree') {
-        // 世界樹の場合、最初は種、3秒後に大樹に成長
         sprite.className = `building-sprite world-tree-seed`;
         sprite.textContent = '🌱';
         sprite.style.fontSize = '3.0rem';
@@ -1028,7 +990,6 @@ function placeBuildingAt(col, row, type, free = false) {
         showToast("世界樹の種を植えました。魔力を注いでいます...", "info");
         
         setTimeout(() => {
-            // 世界樹開花
             sprite.textContent = '🌳';
             sprite.style.fontSize = '4.5rem';
             sprite.style.animation = 'logoFloat 3s ease-in-out infinite';
@@ -1153,6 +1114,151 @@ function layRoad(col, row, type) {
 function clearSelectedTool() {
     state.selectedTool = null;
     document.querySelectorAll('.shop-item, .shop-item-road, .spell-btn').forEach(btn => btn.classList.remove('selected', 'active'));
+}
+
+// ==========================================
+// 5. 資源生産 ＆ HUD・UI更新
+// ==========================================
+
+function gameTick() {
+    let goldRate = 0;
+    let woodRate = 0;
+    let manaRate = 0;
+    
+    const rainActive = state.activeEffects.rain > 0;
+    if (rainActive) {
+        state.activeEffects.rain = Math.max(0, state.activeEffects.rain - 0.1);
+        updateActiveEffectsUI();
+    }
+    
+    const productionMultiplier = rainActive ? 2.0 : 1.0;
+    const happinessMultiplier = state.resources.happiness / 100.0;
+    
+    for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+            const cell = state.grid[r][c];
+            if (cell.building) {
+                const config = BUILDING_TYPES[cell.building.type];
+                const mult = cell.building.level * productionMultiplier;
+                
+                if (config.production.gold > 0) {
+                    const add = (config.production.gold * mult * happinessMultiplier) * 0.1;
+                    state.resources.gold += add;
+                    goldRate += config.production.gold * mult * happinessMultiplier;
+                }
+                if (config.production.wood > 0) {
+                    const add = (config.production.wood * mult) * 0.1;
+                    state.resources.wood += add;
+                    woodRate += config.production.wood * mult;
+                }
+                if (config.production.mana > 0) {
+                    const add = (config.production.mana * mult) * 0.1;
+                    state.resources.mana += add;
+                    manaRate += config.production.mana * mult;
+                }
+            }
+        }
+    }
+    
+    const slimeCount = state.characters.filter(c => c.type === 'slime').length;
+    if (slimeCount > 0) {
+        state.resources.happiness = Math.max(50, state.resources.happiness - (slimeCount * 0.05));
+    } else {
+        state.resources.happiness = Math.min(100, state.resources.happiness + 0.1);
+    }
+    
+    const targetPop = Math.min(state.resources.popMax, Math.floor(state.resources.popMax));
+    if (state.resources.pop < targetPop && Math.random() < 0.05) {
+        state.resources.pop++;
+        spawnCitizen();
+    } else if (state.resources.pop > state.resources.popMax) {
+        state.resources.pop = state.resources.popMax;
+    }
+    
+    updateCharacters();
+    
+    updateQuestProgress('gather_mana');
+    updateQuestProgress('gold_target');
+    
+    updateHUD(goldRate, woodRate, manaRate);
+}
+
+function updateHUD(goldRate = 0, woodRate = 0, manaRate = 0) {
+    document.querySelector('#hud-gold .hud-value').textContent = Math.floor(state.resources.gold);
+    document.getElementById('gold-change').textContent = `+${goldRate.toFixed(1)}/s`;
+    
+    document.querySelector('#hud-wood .hud-value').textContent = Math.floor(state.resources.wood);
+    document.getElementById('wood-change').textContent = `+${woodRate.toFixed(1)}/s`;
+    
+    document.querySelector('#hud-mana .hud-value').textContent = Math.floor(state.resources.mana);
+    document.getElementById('mana-change').textContent = `+${manaRate.toFixed(1)}/s`;
+    
+    document.querySelector('#hud-pop .hud-value').textContent = `${state.resources.pop} / ${state.resources.popMax}`;
+    document.querySelector('#hud-happy .hud-value').textContent = `${Math.floor(state.resources.happiness)}%`;
+    
+    updateShopInteraction();
+    updateSpellInteraction();
+}
+
+function updateShopInteraction() {
+    document.querySelectorAll('.shop-item').forEach(btn => {
+        const bType = btn.dataset.build;
+        const config = BUILDING_TYPES[bType];
+        if (!config) return;
+        
+        let canAfford = state.resources.gold >= config.cost.gold &&
+                        state.resources.wood >= config.cost.wood &&
+                        state.resources.mana >= config.cost.mana;
+        
+        // 世界樹の種は友好度80以上同盟が必須
+        if (bType === 'world_tree') {
+            const hasAlliance = state.factions.royal.rep >= 80 && 
+                                state.factions.guild.rep >= 80 && 
+                                state.factions.archive.rep >= 80;
+            if (!hasAlliance) canAfford = false;
+        }
+        
+        btn.disabled = !canAfford;
+    });
+}
+
+function updateSpellInteraction() {
+    document.querySelectorAll('.spell-btn').forEach(btn => {
+        const sType = btn.dataset.spell;
+        const config = SPELLS[sType];
+        if (!config) return;
+        
+        const canAfford = state.resources.gold >= (config.cost.gold || 0) &&
+                          state.resources.mana >= (config.cost.mana || 0);
+        
+        btn.disabled = !canAfford;
+    });
+}
+
+function showToast(msg, type = "info") {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = msg;
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 4000);
+}
+
+function createFloatingText(col, row, text, type = '') {
+    const board = document.getElementById('game-board');
+    const { x, y } = getIsoCoords(col, row);
+    
+    const el = document.createElement('div');
+    el.className = `floating-text ${type}`;
+    el.textContent = text;
+    el.style.left = `${x + BASE_TILE_WIDTH / 2}px`;
+    el.style.top = `${y + BASE_TILE_HEIGHT / 4}px`;
+    
+    board.appendChild(el);
+    setTimeout(() => el.remove(), 1200);
 }
 
 // ==========================================
@@ -1315,7 +1421,7 @@ function spawnAdventurer(profession) {
     
     state.characters.push(adventurer);
     createCharacterDOM(adventurer);
-    playChibiVoice('spawn'); // キャラクター登場ボイス！
+    playChibiVoice('spawn'); 
     showToast(`新米の${profession === 'knight' ? '騎士' : '魔導士'}(${gender === 'boy' ? '男の子' : '女の子'})が到着しました！`, "success");
 }
 
@@ -1353,14 +1459,16 @@ function spawnCitizen() {
     const subType = gender === 'boy' ? 'knight_boy' : 'mage_girl';
     
     const id = state.nextCharId++;
+    // 最初は道路の適当なポイントに住民を出現させる
+    const roadTile = getRandomRoadCell();
     const citizen = {
         id: id,
         type: 'citizen',
         subType: subType,
-        x: 0,
-        y: 0,
-        targetX: 3,
-        targetY: 3,
+        x: roadTile ? roadTile.col : 3,
+        y: roadTile ? roadTile.row : 3,
+        targetX: roadTile ? roadTile.col : 3,
+        targetY: roadTile ? roadTile.row : 3,
         state: 'wander',
         speed: 0.03
     };
@@ -1369,7 +1477,19 @@ function spawnCitizen() {
     createCharacterDOM(citizen);
 }
 
-// キャラクターDOMの作成（オブジェクトレイヤーに追加）
+// 道路セルをランダムに1個取得する
+function getRandomRoadCell() {
+    const roads = [];
+    for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+            if (state.grid[r][c].tileType === 'dirt' && !state.grid[r][c].building) {
+                roads.push(state.grid[r][c]);
+            }
+        }
+    }
+    return roads.length > 0 ? roads[Math.floor(Math.random() * roads.length)] : null;
+}
+
 function createCharacterDOM(char) {
     const objectsLayer = document.getElementById('objects-layer');
     const el = document.createElement('div');
@@ -1388,9 +1508,8 @@ function createCharacterDOM(char) {
     const pix = getIsoCoords(char.x, char.y);
     el.style.left = `${pix.x + BASE_TILE_WIDTH / 2}px`;
     el.style.top = `${pix.y + BASE_TILE_HEIGHT / 3}px`;
-    el.style.zIndex = Math.floor(char.x + char.y) * 10 + 5; // オブジェクト順にソート
+    el.style.zIndex = Math.floor(char.x + char.y) * 10 + 5; 
     
-    // クリックされたら可愛い「ちびボイス」を発声
     el.style.pointerEvents = 'auto';
     el.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1430,7 +1549,7 @@ function updateCharacters() {
         const currentTileR = Math.min(GRID_SIZE - 1, Math.max(0, Math.round(char.y)));
         const currentTileC = Math.min(GRID_SIZE - 1, Math.max(0, Math.round(char.x)));
         if (state.grid[currentTileR][currentTileC].tileType === 'dirt') {
-            speedMod = 1.45; // 道路の上は移動速度上昇
+            speedMod = 1.45; 
         }
         
         if (dist > 0.05) {
@@ -1438,14 +1557,13 @@ function updateCharacters() {
             char.x += (dx / dist) * step;
             char.y += (dy / dist) * step;
             
-            if (dx > 0) {
-                dom.style.transform = "translate(-50%, -50%) scaleX(1)";
-            } else if (dx < 0) {
-                dom.style.transform = "translate(-50%, -50%) scaleX(-1)";
-            }
+            // 体の方向（左右）および歩行クラスの設定
+            dom.style.setProperty('--scale-x', dx >= 0 ? '1' : '-1');
+            dom.classList.add('walking');
         } else {
             char.x = char.targetX;
             char.y = char.targetY;
+            dom.classList.remove('walking');
             if (char.state === 'walk_to_target' || char.state === 'wander') {
                 setRandomTarget(char);
             }
@@ -1454,19 +1572,67 @@ function updateCharacters() {
         const pix = getIsoCoords(char.x, char.y);
         dom.style.left = `${pix.x + BASE_TILE_WIDTH / 2}px`;
         dom.style.top = `${pix.y + BASE_TILE_HEIGHT / 3}px`;
-        dom.style.zIndex = Math.floor(char.x + char.y) * 10 + 5; // レイヤーソート更新
+        dom.style.zIndex = Math.floor(char.x + char.y) * 10 + 5; 
     });
 }
 
+// キャラクターが道路（レンガ道）のみを歩くように目標を設定するAI
 function setRandomTarget(char) {
-    let randX = char.x + (Math.random() * 4 - 2);
-    let randY = char.y + (Math.random() * 4 - 2);
+    const currentX = Math.round(char.x);
+    const currentY = Math.round(char.y);
     
-    randX = Math.max(0, Math.min(GRID_SIZE - 1, randX));
-    randY = Math.max(0, Math.min(GRID_SIZE - 1, randY));
+    const neighbors = [];
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = currentX + dx;
+            const ny = currentY + dy;
+            
+            if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                const cell = state.grid[ny][nx];
+                
+                // スライムはモンスターなので、道路以外の草地も自由に歩ける
+                if (char.type === 'slime') {
+                    if (!cell.building && !cell.obstacle) {
+                        neighbors.push({x: nx, y: ny});
+                    }
+                } else {
+                    // 市民と冒険者はレンガ舗装された「道」だけを歩く！ (建物や障害物は避ける)
+                    if (cell.tileType === 'dirt' && !cell.building && !cell.obstacle) {
+                        neighbors.push({x: nx, y: ny});
+                    }
+                }
+            }
+        }
+    }
     
-    char.targetX = Math.round(randX);
-    char.targetY = Math.round(randY);
+    if (neighbors.length > 0) {
+        const choice = neighbors[Math.floor(Math.random() * neighbors.length)];
+        char.targetX = choice.x;
+        char.targetY = choice.y;
+    } else {
+        // もし道路の上にいないか、周囲に道路が無い場合の脱出フォールバック
+        const fallbackNeighbors = [];
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = Math.max(0, Math.min(GRID_SIZE - 1, currentX + dx));
+                const ny = Math.max(0, Math.min(GRID_SIZE - 1, currentY + dy));
+                const cell = state.grid[ny][nx];
+                if (!cell.building && !cell.obstacle) {
+                    fallbackNeighbors.push({x: nx, y: ny});
+                }
+            }
+        }
+        if (fallbackNeighbors.length > 0) {
+            const choice = fallbackNeighbors[Math.floor(Math.random() * fallbackNeighbors.length)];
+            char.targetX = choice.x;
+            char.targetY = choice.y;
+        } else {
+            char.targetX = char.x;
+            char.targetY = char.y;
+        }
+    }
     char.state = 'wander';
 }
 
@@ -1496,6 +1662,7 @@ function adventurerAI(char) {
                 attackEnemy(char, enemy);
             }
         } else {
+            // スライム討伐のために追いかける際は、草地の上も移動可能にする
             char.targetX = enemy.x;
             char.targetY = enemy.y;
             char.state = 'walk_to_target';
@@ -1503,6 +1670,7 @@ function adventurerAI(char) {
         return;
     }
     
+    // スライムの索敵 (索敵時のみ草地へ侵入する)
     const slimes = state.characters.filter(c => c.type === 'slime');
     let closestSlime = null;
     let minDist = 999;
@@ -1529,8 +1697,8 @@ function attackEnemy(attacker, defender) {
     defender.hp -= dmg;
     
     createFloatingText(defender.x, defender.y, `-${dmg}`, 'damage');
-    playChibiVoice('attack'); // 攻撃時の掛け声ボイス！
-    playChibiVoice('hurt'); // スライムの被弾ぷにボイス！
+    playChibiVoice('attack'); 
+    playChibiVoice('hurt'); 
     
     const dom = document.getElementById(`char-${attacker.id}`);
     if (dom) {
@@ -1747,14 +1915,12 @@ function checkFactionBonuses(factionKey) {
 function initViewportControls() {
     const viewport = document.getElementById('viewport');
     
-    // 初期配置 (中央寄せ)
     const viewWidth = viewport.clientWidth;
     const viewHeight = viewport.clientHeight;
     state.viewport.x = (viewWidth - 1200) / 2;
     state.viewport.y = 80;
     updateViewportTransform();
     
-    // ドラッグ移動
     viewport.addEventListener('mousedown', (e) => {
         if (e.target.closest('#hud, #spell-book, #faction-panel, #shop, #details-panel, #zoom-controls, #help-modal, #clear-modal, .btn, .btn-toggle-panel, .btn-toggle-shop')) return;
         state.viewport.isDragging = true;
@@ -1773,7 +1939,6 @@ function initViewportControls() {
         state.viewport.isDragging = false;
     });
     
-    // スクリュー移動とCtrlズーム
     viewport.addEventListener('wheel', (e) => {
         e.preventDefault();
         
@@ -1791,7 +1956,6 @@ function initViewportControls() {
         updateViewportTransform();
     });
     
-    // ズームボタン
     document.getElementById('btn-zoom-in').addEventListener('click', () => {
         playClickSound();
         state.viewport.scale = Math.min(1.5, state.viewport.scale + 0.1);
@@ -1864,7 +2028,6 @@ function initTooltip() {
 }
 
 function initPanelCollapsible() {
-    // 魔法書開閉
     const spellPanel = document.getElementById('spell-book');
     const toggleSpellBtn = document.getElementById('btn-toggle-spell');
     toggleSpellBtn.addEventListener('click', () => {
@@ -1873,7 +2036,6 @@ function initPanelCollapsible() {
         toggleSpellBtn.textContent = isCollapsed ? '▶' : '◀';
     });
     
-    // 勢力クエスト開閉
     const factionPanel = document.getElementById('faction-panel');
     const toggleFactionBtn = document.getElementById('btn-toggle-faction');
     toggleFactionBtn.addEventListener('click', () => {
@@ -1882,7 +2044,6 @@ function initPanelCollapsible() {
         toggleFactionBtn.textContent = isCollapsed ? '◀' : '▶';
     });
     
-    // 下部ショップ開閉
     const shopPanel = document.getElementById('shop');
     const toggleShopBtn = document.getElementById('btn-toggle-shop');
     toggleShopBtn.addEventListener('click', () => {
@@ -1899,15 +2060,12 @@ function initPanelCollapsible() {
 function triggerGameClear() {
     state.stats.gameCleared = true;
     
-    // BGM停止
     if (state.audio.bgmInterval) {
         clearInterval(state.audio.bgmInterval);
     }
     
-    // ファンファーレ再生
     playVictoryFanfare();
     
-    // クリアタイムと討伐数の表示
     const elapsedMs = Date.now() - state.stats.startTime;
     const minutes = Math.floor(elapsedMs / 60000);
     const seconds = Math.floor((elapsedMs % 60000) / 1000);
@@ -1916,14 +2074,12 @@ function triggerGameClear() {
     document.getElementById('clear-time').textContent = timeStr;
     document.getElementById('clear-slimes').textContent = state.stats.slimesKilled;
     
-    // モーダル表示
     document.getElementById('clear-modal').classList.remove('hidden');
 }
 
 function restartGame() {
     playClickSound();
     
-    // データ初期化
     state.resources = {
         gold: 150,
         wood: 80,
@@ -1943,20 +2099,15 @@ function restartGame() {
     state.factions.archive.rep = 50;
     state.factions.archive.bonusUnlocked = false;
     
-    // 特典ボーナス初期化
     BUILDING_TYPES.house.production.gold = 1.5;
     BUILDING_TYPES.tavern.production.gold = 0.8;
     SPELLS.rain.cost.mana = 20;
     document.getElementById('spell-rain').querySelector('.spell-cost').textContent = "✨20";
     document.getElementById('spell-rain').dataset.tip = `🌧️ <b>成長の雨 (消費マナ: 20)</b><br>40秒間、全施設の資源生産速度が <b>2倍</b> になります。`;
     
-    // モーダル隠す
     document.getElementById('clear-modal').classList.add('hidden');
     
-    // 音声再開
     initAudio();
-    
-    // ゲーム再構築
     initGame();
     showToast("新しくゲームを開始しました！", "success");
 }
@@ -1983,7 +2134,6 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('help-modal').classList.remove('hidden');
     });
     
-    // モーダル制御
     document.getElementById('btn-help').addEventListener('click', () => {
         playClickSound();
         document.getElementById('help-modal').classList.remove('hidden');
@@ -1997,10 +2147,8 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('help-modal').classList.add('hidden');
     });
     
-    // リスタート
     document.getElementById('btn-restart').addEventListener('click', restartGame);
     
-    // ショップカテゴリタブ
     document.querySelectorAll('.shop-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             playClickSound();
@@ -2013,7 +2161,6 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // 建築アイテム
     document.querySelectorAll('.shop-item').forEach(item => {
         item.addEventListener('click', () => {
             playClickSound();
@@ -2028,7 +2175,6 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // 道路ツール
     document.querySelectorAll('.shop-item-road').forEach(item => {
         item.addEventListener('click', () => {
             playClickSound();
@@ -2043,7 +2189,6 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // 魔法スペルボタン
     document.getElementById('spell-rain').addEventListener('click', startRainSpell);
     document.getElementById('spell-surge').addEventListener('click', () => selectSpell('surge'));
     document.getElementById('spell-slime').addEventListener('click', () => selectSpell('slime'));
@@ -2051,7 +2196,6 @@ window.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('btn-sound').addEventListener('click', toggleSound);
     
-    // 詳細パネル閉じる
     document.getElementById('btn-close-details').addEventListener('click', () => {
         playClickSound();
         document.getElementById('details-panel').classList.add('hidden');
